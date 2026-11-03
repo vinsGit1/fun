@@ -131,6 +131,11 @@
                         <div id="standalone-members-list" class="flex flex-wrap gap-2">
                             <!-- Dynamic Standalone Tags -->
                         </div>
+
+                        <div id="inactive-members-section" class="hidden space-y-2 pt-2 border-t border-dashed border-slate-200 dark:border-slate-700">
+                            <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Not in this outing <span class="normal-case font-normal tracking-normal">(tap to add back)</span></div>
+                            <div id="inactive-members-list" class="flex flex-wrap gap-2"></div>
+                        </div>
                     </div>
                 </div>
 
@@ -872,6 +877,8 @@
                 primaryPayersList: document.getElementById('primary-payers-list'),
                 standaloneMembersList: document.getElementById('standalone-members-list'),
                 memberCountBadge: document.getElementById('member-count-badge'),
+                inactiveMembersSection: document.getElementById('inactive-members-section'),
+                inactiveMembersList: document.getElementById('inactive-members-list'),
                 
                 addItemForm: document.getElementById('add-item-form'),
                 itemName: document.getElementById('item-name'),
@@ -1388,6 +1395,43 @@
         }
 
         // --- MULTI-SELECT MEMBER PICKER (dropdown with checkboxes) ---
+        // A family (primary + dependents) or a standalone guest can sit out an outing; dependents follow their primary
+        function isActiveMember(m) {
+            if (m.role === 'dependent') {
+                const parent = state.members.find(p => p.id === m.parentId);
+                return parent ? parent.active !== false : true;
+            }
+            return m.active !== false;
+        }
+
+        function activeMembers() {
+            return state.members.filter(isActiveMember);
+        }
+
+        function toggleMemberActive(memberId) {
+            const member = state.members.find(m => m.id === memberId);
+            if (!member) return;
+
+            if (member.active === false) {
+                member.active = true;
+            } else {
+                // Can't sit out an outing they already ate in or paid for
+                const groupIds = [member.id, ...state.members.filter(m => m.role === 'dependent' && m.parentId === member.id).map(m => m.id)];
+                const receipts = allReceipts();
+                const itemCount = receipts.flatMap(r => r.items).filter(i => i.assignedMemberIds.some(id => groupIds.includes(id))).length;
+                const paid = receipts.filter(r => r.paidByMemberId === member.id).map(receiptLabel);
+                if (itemCount > 0 || paid.length > 0) {
+                    const why = [itemCount ? `are eaters on ${itemCount} item(s)` : '', paid.length ? `paid ${paid.join(', ')}` : ''].filter(Boolean).join(' and ');
+                    showToast(`${member.name}${groupIds.length > 1 ? "'s family" : ''} ${why} — untick them there first`, true);
+                    return;
+                }
+                member.active = false;
+            }
+            closeMemberPickers();
+            renderAll();
+            showToast(member.active === false ? `${member.name} is not in this outing` : `${member.name} is back in this outing`);
+        }
+
         function roleLabel(role) {
             return role === 'primary' ? 'Primary' : (role === 'dependent' ? 'Dependent' : 'Guest');
         }
@@ -1417,7 +1461,7 @@
         // shares: portions per member; pass null to hide the − / + portion steppers (bulk picker)
         function memberPickerHtml(pickerId, selectedIds, itemId = '', shares = {}) {
             const withShares = shares !== null;
-            const options = state.members.map(m => {
+            const options = activeMembers().map(m => {
                 const checked = selectedIds.includes(m.id);
                 const count = checked ? Math.max(1, parseInt(shares?.[m.id]) || 1) : 1;
                 const stepBtn = 'w-5 h-5 flex items-center justify-center rounded bg-slate-100 dark:bg-slate-700 text-slate-500 hover:text-emerald-600';
@@ -1977,7 +2021,7 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
         function renderNewMemberParentOptions() {
             if (!elements.newMemberParent) return;
             elements.newMemberParent.innerHTML = '';
-            const primaries = state.members.filter(m => m.role === 'primary');
+            const primaries = state.members.filter(m => m.role === 'primary' && isActiveMember(m));
             if (primaries.length === 0) {
                 const opt = document.createElement('option');
                 opt.value = '';
@@ -1998,14 +2042,22 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
         function renderMembersList() {
             if (!elements.primaryPayersList || !elements.standaloneMembersList) return;
 
-            const primaries = state.members.filter(m => m.role === 'primary');
-            const standalones = state.members.filter(m => m.role === 'standalone');
+            const allPrimaries = state.members.filter(m => m.role === 'primary');
+            const standalones = state.members.filter(m => m.role === 'standalone' && isActiveMember(m));
+            const inOuting = activeMembers().length;
 
-            elements.memberCountBadge.textContent = `${state.members.length} Members`;
+            elements.memberCountBadge.textContent = inOuting === state.members.length
+                ? `${state.members.length} Members`
+                : `${inOuting} of ${state.members.length} in this outing`;
 
             elements.primaryPayersList.innerHTML = '';
-            primaries.forEach((primary, idx) => {
-                const color = getFamilyColor(idx);
+            if (!allPrimaries.some(isActiveMember)) {
+                elements.primaryPayersList.innerHTML = `<span class="text-xs text-slate-400 italic">No family groups in this outing.</span>`;
+            }
+            const sitOutBtn = (id, label) => `<button onclick="toggleMemberActive('${id}')" class="text-slate-400 hover:text-rose-500 text-[10px]" title="${label} is not in this outing — hide from this bill"><i class="fa-solid fa-eye-slash"></i></button>`;
+            allPrimaries.forEach((primary, idx) => {
+                if (!isActiveMember(primary)) return;
+                const color = getFamilyColor(idx); // index over all families so colours don't shift when one sits out
                 const dependents = state.members.filter(m => m.role === 'dependent' && m.parentId === primary.id);
 
                 const groupDiv = document.createElement('div');
@@ -2017,6 +2069,7 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
                         <button onclick="openEditMemberModal('${primary.id}')" class="hover:opacity-75 ml-1 text-[10px]" title="Edit Primary"><i class="fa-solid fa-pen"></i></button>
                     </span>
                 `;
+                const sitOut = sitOutBtn(primary.id, `${primary.name}'s family`);
 
                 dependents.forEach(dep => {
                     innerHTML += `
@@ -2027,7 +2080,7 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
                     `;
                 });
 
-                groupDiv.innerHTML = innerHTML;
+                groupDiv.innerHTML = innerHTML + sitOut;
                 elements.primaryPayersList.appendChild(groupDiv);
             });
 
@@ -2041,10 +2094,23 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
                     guestTag.innerHTML = `
                         <i class="fa-solid fa-user-tag text-slate-400"></i> ${guest.name}
                         <button onclick="openEditMemberModal('${guest.id}')" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-[10px]"><i class="fa-solid fa-pen"></i></button>
+                        ${sitOutBtn(guest.id, guest.name)}
                     `;
                     elements.standaloneMembersList.appendChild(guestTag);
                 });
             }
+
+            // Families / guests sitting out this outing: one tap brings them back
+            const away = state.members.filter(m => m.role !== 'dependent' && !isActiveMember(m));
+            elements.inactiveMembersSection.classList.toggle('hidden', away.length === 0);
+            elements.inactiveMembersList.innerHTML = away.map(m => {
+                const deps = state.members.filter(d => d.role === 'dependent' && d.parentId === m.id).length;
+                return `
+                    <button onclick="toggleMemberActive('${m.id}')" title="Add ${m.name} back to this outing" class="px-2.5 py-1 rounded-xl border border-dashed border-slate-300 dark:border-slate-600 text-xs font-medium text-slate-400 hover:text-emerald-600 hover:border-emerald-400 flex items-center gap-1.5">
+                        <i class="fa-solid ${m.role === 'primary' ? 'fa-user-tie' : 'fa-user-tag'}"></i> ${m.name}${deps ? ` +${deps}` : ''}
+                        <i class="fa-solid fa-eye text-[10px]"></i>
+                    </button>`;
+            }).join('');
 
             renderNewMemberParentOptions();
         }
@@ -2068,7 +2134,7 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
             if (!state.paidByMemberId) placeholder.selected = true;
             elements.paidByMember.appendChild(placeholder);
 
-            const primaries = state.members.filter(m => m.role === 'primary');
+            const primaries = state.members.filter(m => m.role === 'primary' && isActiveMember(m));
             primaries.forEach(p => {
                 const opt = document.createElement('option');
                 opt.value = p.id;
@@ -2245,8 +2311,8 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
             if (!elements.coverageRulesContainer) return;
             elements.coverageRulesContainer.innerHTML = '';
 
-            const standalones = state.members.filter(m => m.role === 'standalone');
-            const primaries = state.members.filter(m => m.role === 'primary');
+            const standalones = state.members.filter(m => m.role === 'standalone' && isActiveMember(m));
+            const primaries = state.members.filter(m => m.role === 'primary' && isActiveMember(m));
 
             if (standalones.length === 0) {
                 elements.coverageRulesContainer.innerHTML = `<p class="text-xs text-slate-400 italic">No standalone guests added.</p>`;
@@ -2309,7 +2375,7 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
             if (!state.coverageRules[guestId]) state.coverageRules[guestId] = {};
             state.coverageRules[guestId].mode = mode;
 
-            const primaries = state.members.filter(m => m.role === 'primary');
+            const primaries = state.members.filter(m => m.role === 'primary' && isActiveMember(m));
             if (mode === 'single' && !state.coverageRules[guestId].singlePrimaryId && primaries.length > 0) {
                 state.coverageRules[guestId].singlePrimaryId = primaries[0].id;
             } else if (mode === 'split_even' && !state.coverageRules[guestId].coveredByPrimaryIds) {
@@ -2449,7 +2515,7 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
                 target.tax += share.tax / k;
             };
 
-            const primaries = s.members.filter(m => m.role === 'primary');
+            const primaries = s.members.filter(m => m.role === 'primary' && isActiveMember(m));
             const primaryBreakdowns = {};
 
             primaries.forEach(p => {
@@ -2470,15 +2536,17 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
                 }
             });
 
-            s.members.filter(m => m.role === 'standalone').forEach(guest => {
+            s.members.filter(m => m.role === 'standalone' && isActiveMember(m)).forEach(guest => {
                 const share = bill.per[guest.id] || blank();
                 const rule = s.coverageRules[guest.id] || { mode: 'split_even', coveredByPrimaryIds: primaries.map(p => p.id) };
 
-                if (rule.mode === 'single' && rule.singlePrimaryId && primaryBreakdowns[rule.singlePrimaryId]) {
+                if (rule.mode === 'single' && primaryBreakdowns[rule.singlePrimaryId]) {
                     addTo(primaryBreakdowns[rule.singlePrimaryId].guests, share);
-                } else if (rule.mode === 'split_even' && rule.coveredByPrimaryIds && rule.coveredByPrimaryIds.length > 0) {
-                    const validPrimaryIds = rule.coveredByPrimaryIds.filter(id => primaryBreakdowns[id]);
-                    validPrimaryIds.forEach(pId => addTo(primaryBreakdowns[pId].guests, share, validPrimaryIds.length));
+                } else {
+                    // Covering families not in this outing are skipped; if none are left, every family in the outing shares the guest
+                    const validPrimaryIds = (rule.mode === 'split_even' ? rule.coveredByPrimaryIds || [] : []).filter(id => primaryBreakdowns[id]);
+                    const coverers = validPrimaryIds.length ? validPrimaryIds : primaries.map(p => p.id);
+                    coverers.forEach(pId => addTo(primaryBreakdowns[pId].guests, share, coverers.length));
                 }
             });
 
@@ -2507,7 +2575,7 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
         function calculateAndRenderBreakdown() {
             const bill = computeBill(state);
             renderBillSummary(bill);
-            const primaries = state.members.filter(m => m.role === 'primary');
+            const primaries = state.members.filter(m => m.role === 'primary' && isActiveMember(m));
             const primaryBreakdowns = computeFamilyBreakdowns(state, bill);
             const multiReceipt = state.receipts.length > 1;
 
@@ -2619,7 +2687,7 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
 
         // Combines every receipt: what each family ate vs what they paid, then the fewest transfers to settle up
         function computeSettlement() {
-            const primaries = state.members.filter(m => m.role === 'primary');
+            const primaries = state.members.filter(m => m.role === 'primary' && isActiveMember(m));
             const families = primaries.map(p => ({ member: p, perReceipt: [], ate: 0, paid: 0, balance: 0 }));
             const byId = Object.fromEntries(families.map(f => [f.member.id, f]));
 
