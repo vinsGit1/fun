@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <!-- Tell GitHub Pages to skip Jekyll processing -->
+    <!-- .nojekyll enabled -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Family & Group Bill Splitter with Multi-Tax Support</title>
@@ -82,7 +84,7 @@
                     <div class="flex items-center justify-between">
                         <div class="flex items-center space-x-2">
                             <span class="w-7 h-7 rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 flex items-center justify-center font-bold text-sm">1</span>
-                            <h2 class="text-lg font-semibold">People</h2>
+                            <h2 class="text-lg font-semibold">People & Family Hierarchy</h2>
                         </div>
                         <span id="member-count-badge" class="px-2.5 py-1 text-xs font-medium bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-full">
                             8 Members
@@ -154,12 +156,15 @@
                             </select>
                         </div>
 
-                        <!-- Who Consumed Selection -->
+                        <!-- Who Consumed Dropdown Selection -->
                         <div class="space-y-1.5">
                             <label class="block text-xs font-medium text-slate-500 dark:text-slate-400">Assign item to members:</label>
-                            <div id="item-members-checkboxes" class="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto custom-scrollbar p-1">
-                                <!-- Member Checkboxes -->
-                            </div>
+                        <!-- Who Consumed Single Dropdown Selection -->
+                        <div class="space-y-1.5">
+                            <label class="block text-xs font-medium text-slate-500 dark:text-slate-400">Assign item to member:</label>
+                            <select id="item-members-dropdown" class="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 dark:bg-slate-900 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500">
+                                <!-- Options populated dynamically -->
+                            </select>
                         </div>
 
                         <button type="submit" class="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-medium shadow-sm transition-colors flex items-center justify-center gap-2">
@@ -433,9 +438,9 @@
 
                 <div class="space-y-1.5">
                     <label class="block text-xs font-medium text-slate-500 dark:text-slate-400">Eaten / Consumed By:</label>
-                    <div id="edit-item-members-checkboxes" class="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto custom-scrollbar p-1 border border-slate-200 dark:border-slate-700 rounded-xl">
-                        <!-- Dynamic member checkboxes -->
-                    </div>
+                    <select id="edit-item-members-dropdown" class="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 dark:bg-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500">
+                        <!-- Options populated dynamically -->
+                    </select>
                 </div>
 
                 <div class="flex justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-700">
@@ -595,7 +600,7 @@
                 editItemName: document.getElementById('edit-item-name'),
                 editItemPrice: document.getElementById('edit-item-price'),
                 editItemTaxTier: document.getElementById('edit-item-tax-tier'),
-                editItemMembersCheckboxes: document.getElementById('edit-item-members-checkboxes'),
+                editItemMembersDropdown: document.getElementById('edit-item-members-dropdown'),
 
                 newMemberName: document.getElementById('new-member-name'),
                 newMemberRole: document.getElementById('new-member-role'),
@@ -608,7 +613,7 @@
                 itemName: document.getElementById('item-name'),
                 itemPrice: document.getElementById('item-price'),
                 itemTaxTier: document.getElementById('item-tax-tier'),
-                itemMembersCheckboxes: document.getElementById('item-members-checkboxes'),
+                itemMembersDropdown: document.getElementById('item-members-dropdown'),
                 itemsTableBody: document.getElementById('items-table-body'),
                 
                 coverageRulesContainer: document.getElementById('coverage-rules-container'),
@@ -731,15 +736,15 @@
                 const price = parseFloat(elements.editItemPrice.value);
                 const taxTierId = elements.editItemTaxTier.value;
 
-                const checkedBoxes = document.querySelectorAll('.edit-item-member-cb:checked');
-                const assignedMemberIds = Array.from(checkedBoxes).map(cb => cb.value);
+                const selectedMemberId = elements.editItemMembersDropdown.value;
+                const assignedMemberIds = selectedMemberId ? [selectedMemberId] : [];
 
                 if (!name || isNaN(price) || price <= 0) {
                     showToast('Please enter a valid item name and price', true);
                     return;
                 }
                 if (assignedMemberIds.length === 0) {
-                    showToast('Please assign this item to at least one member', true);
+                    showToast('Please assign this item to a member', true);
                     return;
                 }
 
@@ -888,15 +893,15 @@
                 const price = parseFloat(elements.itemPrice.value);
                 const taxTierId = elements.itemTaxTier.value;
 
-                const checkedBoxes = document.querySelectorAll('.item-member-cb:checked');
-                const assignedMemberIds = Array.from(checkedBoxes).map(cb => cb.value);
+                const selectedMemberId = elements.itemMembersDropdown.value;
+                const assignedMemberIds = selectedMemberId ? [selectedMemberId] : [];
 
                 if (!name || isNaN(price) || price <= 0) {
                     showToast('Please enter a valid item name and price', true);
                     return;
                 }
                 if (assignedMemberIds.length === 0) {
-                    showToast('Please assign this item to at least one member', true);
+                    showToast('Please assign this item to a member', true);
                     return;
                 }
 
@@ -1021,7 +1026,7 @@
         function renderAll() {
             renderMembersList();
             renderTaxDropdowns();
-            renderItemMemberCheckboxes();
+            renderItemMemberDropdownOptions();
             renderItemsTable();
             renderCoverageRules();
             calculateAndRenderBreakdown();
@@ -1094,6 +1099,18 @@
                 opt.value = p.id;
                 opt.textContent = `Covered by ${p.name}`;
                 elements.newMemberParent.appendChild(opt);
+            });
+        }
+
+        function renderItemMemberDropdownOptions() {
+            if (!elements.itemMembersDropdown) return;
+            elements.itemMembersDropdown.innerHTML = '';
+
+            state.members.forEach(member => {
+                const option = document.createElement('option');
+                option.value = member.id;
+                option.textContent = `${member.name} (${member.role === 'primary' ? 'Primary' : member.role === 'dependent' ? 'Dependent' : 'Guest'})`;
+                elements.itemMembersDropdown.appendChild(option);
             });
         }
 
@@ -1199,17 +1216,15 @@
             renderTaxDropdowns();
             elements.editItemTaxTier.value = item.taxTierId;
 
-            // Render member checkboxes for edit modal
-            elements.editItemMembersCheckboxes.innerHTML = '';
+            // Render single member select options for edit modal
+            elements.editItemMembersDropdown.innerHTML = '';
             state.members.forEach(member => {
-                const isChecked = item.assignedMemberIds.includes(member.id);
-                const label = document.createElement('label');
-                label.className = 'px-2.5 py-1 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg text-xs font-medium text-slate-700 dark:text-slate-200 flex items-center gap-1.5 cursor-pointer border border-slate-200 dark:border-slate-600';
-                label.innerHTML = `
-                    <input type="checkbox" value="${member.id}" ${isChecked ? 'checked' : ''} class="edit-item-member-cb rounded text-emerald-600 focus:ring-emerald-500">
-                    <span>${member.name}</span>
-                `;
-                elements.editItemMembersCheckboxes.appendChild(label);
+                const isSelected = item.assignedMemberIds.includes(member.id);
+                const option = document.createElement('option');
+                option.value = member.id;
+                option.selected = isSelected;
+                option.textContent = `${member.name} (${member.role === 'primary' ? 'Primary' : member.role === 'dependent' ? 'Dependent' : 'Guest'})`;
+                elements.editItemMembersDropdown.appendChild(option);
             });
 
             elements.editItemModal.classList.remove('hidden');
