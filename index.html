@@ -152,12 +152,10 @@
                             </select>
                         </div>
 
-                        <!-- Who Consumed Single Dropdown Selection -->
+                        <!-- Who Consumed: multi-select dropdown (price split evenly between ticked members) -->
                         <div class="space-y-1.5">
-                            <label class="block text-xs font-medium text-slate-500 dark:text-slate-400">Assign item to member:</label>
-                            <select id="item-members-dropdown" class="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 dark:bg-slate-900 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500">
-                                <!-- Options populated dynamically -->
-                            </select>
+                            <label class="block text-xs font-medium text-slate-500 dark:text-slate-400">Eaten by (tick several to split the price evenly):</label>
+                            <div id="item-members-slot"></div>
                         </div>
 
                         <button type="submit" class="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-medium shadow-sm transition-colors flex items-center justify-center gap-2">
@@ -172,7 +170,7 @@
                                 <tr>
                                     <th class="py-2 px-3 font-semibold">Item</th>
                                     <th class="py-2 px-3 font-semibold">Eaten By</th>
-                                    <th class="py-2 px-3 font-semibold">Tax Rate</th>
+                                    <th class="py-2 px-3 font-semibold">SST</th>
                                     <th class="py-2 px-3 font-semibold text-right">Price</th>
                                     <th class="py-2 px-3 text-center">Actions</th>
                                 </tr>
@@ -222,6 +220,43 @@
                                 class="w-full px-2.5 py-1.5 text-xs border border-slate-200 dark:border-slate-700 dark:bg-slate-900 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500">
                         </div>
                     </div>
+                    <div class="grid grid-cols-2 gap-2 text-xs">
+                        <div>
+                            <label class="block text-[11px] font-medium text-slate-400 mb-0.5">Discount (RM)</label>
+                            <input type="number" id="bill-discount" step="0.01" min="0" placeholder="0.00"
+                                class="w-full px-2.5 py-1.5 text-xs border border-slate-200 dark:border-slate-700 dark:bg-slate-900 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-medium text-slate-400 mb-0.5">Receipt Total (to verify)</label>
+                            <input type="number" id="receipt-total" step="0.01" min="0" placeholder="e.g. 242.75"
+                                class="w-full px-2.5 py-1.5 text-xs border border-slate-200 dark:border-slate-700 dark:bg-slate-900 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500">
+                        </div>
+                    </div>
+                    <!-- Charges on this receipt: user ticks what the restaurant actually charged -->
+                    <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 space-y-2">
+                        <span class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400">Charges on this receipt <span class="font-normal text-slate-400">(tick only what's printed)</span></span>
+                        <div class="flex items-center justify-between gap-2 text-xs">
+                            <label class="flex items-center gap-2 cursor-pointer font-medium text-slate-700 dark:text-slate-200">
+                                <input type="checkbox" id="svc-enabled" class="rounded text-emerald-600 focus:ring-emerald-500"> Service charge
+                            </label>
+                            <div class="flex items-center gap-1">
+                                <input type="number" id="global-service-rate" step="0.5" min="0" max="30"
+                                    class="w-16 px-2 py-1 text-xs text-right border border-slate-200 dark:border-slate-700 dark:bg-slate-900 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-40">
+                                <span class="text-slate-400">%</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between gap-2 text-xs">
+                            <label class="flex items-center gap-2 cursor-pointer font-medium text-slate-700 dark:text-slate-200">
+                                <input type="checkbox" id="sst-enabled" class="rounded text-emerald-600 focus:ring-emerald-500"> SST
+                            </label>
+                            <select id="sst-rate" class="px-2 py-1 text-xs border border-slate-200 dark:border-slate-700 dark:bg-slate-900 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-40"></select>
+                        </div>
+                        <p id="sst-hint" class="hidden text-[10px] text-slate-400">Mixed rates (e.g. 6% food, 8% alcohol)? Change individual rows in the item list.</p>
+                        <label class="flex items-center gap-2 cursor-pointer text-xs text-slate-600 dark:text-slate-300 pt-1 border-t border-slate-200 dark:border-slate-700">
+                            <input type="checkbox" id="round-5-sen" class="rounded text-emerald-600 focus:ring-emerald-500"> Round total to nearest 5 sen
+                        </label>
+                    </div>
+
                     <div>
                         <label class="block text-[11px] font-medium text-slate-400 mb-0.5">Who Paid Front Total? <span class="text-rose-500 font-bold">*</span></label>
                         <select id="paid-by-member" required class="w-full px-2.5 py-1.5 text-xs border border-emerald-300 dark:border-emerald-700 bg-emerald-50/50 dark:bg-emerald-950/40 rounded-lg outline-none font-semibold text-emerald-800 dark:text-emerald-300">
@@ -235,7 +270,7 @@
                     <div class="relative z-10 space-y-4">
                         <div class="flex justify-between items-start">
                             <div>
-                                <span class="text-xs font-semibold text-emerald-100 uppercase tracking-wider">Grand Total Bill</span>
+                                <span class="text-xs font-semibold text-emerald-100 uppercase tracking-wider">Net Total</span>
                                 <div id="grand-total-amount" class="text-3xl font-extrabold tracking-tight mt-1">RM 0.00</div>
                             </div>
                             <div class="flex gap-2">
@@ -248,20 +283,8 @@
                             </div>
                         </div>
 
-                        <div class="grid grid-cols-3 gap-2 pt-3 border-t border-white/10 text-xs">
-                            <div>
-                                <span class="text-emerald-200 block text-[11px]">Subtotal</span>
-                                <span id="summary-subtotal" class="font-bold">RM 0.00</span>
-                            </div>
-                            <div>
-                                <span class="text-emerald-200 block text-[11px]">Svc Charge</span>
-                                <span id="summary-svc" class="font-bold">RM 0.00</span>
-                            </div>
-                            <div>
-                                <span class="text-emerald-200 block text-[11px]">Item Taxes</span>
-                                <span id="summary-sst" class="font-bold">RM 0.00</span>
-                            </div>
-                        </div>
+                        <!-- Subtotal / discount / service charge / SST per tier / rounding -->
+                        <div id="summary-grid" class="grid grid-cols-3 gap-x-2 gap-y-2.5 pt-3 border-t border-white/10 text-xs"></div>
                     </div>
                 </div>
 
@@ -288,6 +311,19 @@
                         <div class="flex justify-between border-t border-slate-100 dark:border-slate-700 pt-2 text-slate-500">
                             <span>Discrepancy / Variance:</span>
                             <span id="reconcile-difference" class="font-bold text-emerald-600 dark:text-emerald-400">RM 0.00</span>
+                        </div>
+                        <div id="reconcile-receipt-rows" class="hidden space-y-2 border-t border-slate-100 dark:border-slate-700 pt-2">
+                            <div class="flex justify-between text-slate-600 dark:text-slate-300">
+                                <span>Printed Receipt Total:</span>
+                                <span id="reconcile-receipt-total" class="font-semibold text-slate-800 dark:text-slate-100">RM 0.00</span>
+                            </div>
+                            <div class="flex justify-between text-slate-500">
+                                <span>Calculated vs Receipt:</span>
+                                <span id="reconcile-receipt-diff" class="font-bold">RM 0.00</span>
+                            </div>
+                            <p id="reconcile-receipt-hint" class="hidden text-[11px] text-rose-600 dark:text-rose-400">
+                                Check the service charge %, each item's SST tier, and whether the receipt subtotal is lower than the items (enter the difference as Discount).
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -374,13 +410,19 @@
             </div>
 
             <div class="space-y-3">
-                <div>
-                    <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Global Service Charge (%)</label>
-                    <input type="number" id="global-service-rate" step="0.5" min="0" max="30" class="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500">
+                <p class="text-xs text-slate-500 dark:text-slate-400">
+                    Tick service charge and SST for each receipt in the <span class="font-semibold">Charges on this receipt</span> section on the main screen.
+                </p>
+
+                <div class="space-y-1.5 text-xs text-slate-600 dark:text-slate-300">
+                    <label class="flex items-start gap-2 cursor-pointer">
+                        <input type="checkbox" id="sst-on-svc" class="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500">
+                        <span>Charge SST on the service charge too <span class="text-slate-400">(most receipts don't: SST is on items only)</span></span>
+                    </label>
                 </div>
 
                 <div class="space-y-2">
-                    <label class="block text-xs font-medium text-slate-500 dark:text-slate-400">Item Tax Tiers (SST / Alcohol Tax)</label>
+                    <label class="block text-xs font-medium text-slate-500 dark:text-slate-400">SST Tiers (set per item in the item list)</label>
                     <div id="tax-tiers-list" class="space-y-1.5 max-h-36 overflow-y-auto custom-scrollbar"></div>
 
                     <div class="flex gap-2 pt-1">
@@ -455,10 +497,8 @@
                 </div>
 
                 <div class="space-y-1.5">
-                    <label class="block text-xs font-medium text-slate-500 dark:text-slate-400">Eaten / Consumed By:</label>
-                    <select id="edit-item-members-dropdown" class="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 dark:bg-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500">
-                        <!-- Options populated dynamically -->
-                    </select>
+                    <label class="block text-xs font-medium text-slate-500 dark:text-slate-400">Eaten / Consumed By (split evenly):</label>
+                    <div id="edit-item-members-slot"></div>
                 </div>
 
                 <div class="flex justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-700">
@@ -530,6 +570,13 @@
     <!-- Application Logic Script -->
     <script>
         // --- INITIAL DEFAULT DATA ---
+        // Malaysian SST: 6% on food & drinks, 8% on alcohol and most other taxable services
+        const STANDARD_TIERS = [
+            { id: 't0', name: 'No SST (0%)', rate: 0 },
+            { id: 't1', name: 'SST 6% (Food & Drinks)', rate: 6 },
+            { id: 't2', name: 'SST 8% (Alcohol & others)', rate: 8 },
+        ];
+
         const DEFAULT_STATE = {
             merchant: 'Yip Kee Bak Kut Teh',
             date: '2026-10-23',
@@ -544,22 +591,17 @@
                 { id: 'm7', name: 'D1', role: 'standalone', parentId: null },
                 { id: 'm8', name: 'D2', role: 'standalone', parentId: null },
             ],
-            taxTiers: [
-                { id: 't0', name: 'Tax Free (0%)', rate: 0 },
-                { id: 't1', name: 'Standard SST (6%)', rate: 6 },
-                { id: 't2', name: 'Alcohol Tax (10%)', rate: 10 },
-            ],
-            serviceChargeRate: 6,
-            items: [
-                { id: 'i1', name: 'Roti Canai', price: 4.00, taxTierId: 't1', assignedMemberIds: ['m1'] },
-                { id: 'i2', name: 'Capati', price: 4.00, taxTierId: 't1', assignedMemberIds: ['m2'] },
-                { id: 'i3', name: 'Milo', price: 6.00, taxTierId: 't1', assignedMemberIds: ['m3'] },
-                { id: 'i4', name: 'Bread', price: 3.00, taxTierId: 't1', assignedMemberIds: ['m4'] },
-                { id: 'i5', name: 'Nasi', price: 19.00, taxTierId: 't1', assignedMemberIds: ['m5'] },
-                { id: 'i6', name: 'Noodles', price: 5.00, taxTierId: 't1', assignedMemberIds: ['m6'] },
-                { id: 'i7', name: 'Mee Soup', price: 6.00, taxTierId: 't1', assignedMemberIds: ['m7'] },
-                { id: 'i8', name: 'Curry Chicken', price: 19.00, taxTierId: 't1', assignedMemberIds: ['m8'] },
-            ],
+            taxTiers: STANDARD_TIERS.map(t => ({ ...t })),
+            // Off until the user ticks them: many places charge no service charge or SST
+            serviceChargeEnabled: false,
+            serviceChargeRate: 10,
+            sstEnabled: false,
+            sstOnServiceCharge: false,
+            roundTo5Sen: true,
+            defaultTaxTierId: 't1',
+            discount: 0,
+            receiptTotal: null,
+            items: [],
             coverageRules: {
                 'm7': { mode: 'split_even', coveredByPrimaryIds: ['m1', 'm4', 'm6'] },
                 'm8': { mode: 'single', singlePrimaryId: 'm1' }
@@ -574,13 +616,37 @@
                 if (saved) {
                     const parsed = JSON.parse(saved);
                     if (parsed && parsed.members && parsed.members.length > 0) {
-                        return parsed;
+                        return migrateState(parsed);
                     }
                 }
             } catch (e) {
                 console.error("Failed to load local storage state", e);
             }
             return JSON.parse(JSON.stringify(DEFAULT_STATE));
+        }
+
+        // Fill in settings added since the state was saved, and fix the old made-up tax tiers
+        function migrateState(s) {
+            const defaults = { sstOnServiceCharge: false, roundTo5Sen: true, defaultTaxTierId: 't1', discount: 0, receiptTotal: null, coverageRules: {} };
+            Object.entries(defaults).forEach(([key, value]) => {
+                if (s[key] === undefined) s[key] = value;
+            });
+
+            // Saved before the tick boxes existed: keep charging whatever was being charged
+            if (s.serviceChargeEnabled === undefined) s.serviceChargeEnabled = (s.serviceChargeRate || 0) > 0;
+            if (s.sstEnabled === undefined) {
+                s.sstEnabled = (s.items || []).some(i => ((s.taxTiers || []).find(t => t.id === i.taxTierId) || {}).rate > 0);
+            }
+
+            const renames = { 'Tax Free (0%)': STANDARD_TIERS[0], 'Standard SST (6%)': STANDARD_TIERS[1], 'Alcohol Tax (10%)': STANDARD_TIERS[2] };
+            (s.taxTiers || []).forEach(t => {
+                const std = renames[t.name];
+                if (std && std.id === t.id) {
+                    t.name = std.name;
+                    t.rate = std.rate;
+                }
+            });
+            return s;
         }
 
         function saveState() {
@@ -610,6 +676,19 @@
             elements = {
                 receiptMerchant: document.getElementById('receipt-merchant'),
                 receiptDate: document.getElementById('receipt-date'),
+                billDiscount: document.getElementById('bill-discount'),
+                receiptTotal: document.getElementById('receipt-total'),
+                reconcileReceiptRows: document.getElementById('reconcile-receipt-rows'),
+                reconcileReceiptTotal: document.getElementById('reconcile-receipt-total'),
+                reconcileReceiptDiff: document.getElementById('reconcile-receipt-diff'),
+                reconcileReceiptHint: document.getElementById('reconcile-receipt-hint'),
+                summaryGrid: document.getElementById('summary-grid'),
+                svcEnabled: document.getElementById('svc-enabled'),
+                sstEnabled: document.getElementById('sst-enabled'),
+                sstRate: document.getElementById('sst-rate'),
+                sstHint: document.getElementById('sst-hint'),
+                sstOnSvc: document.getElementById('sst-on-svc'),
+                round5Sen: document.getElementById('round-5-sen'),
                 paidByMember: document.getElementById('paid-by-member'),
                 clearStorageBtn: document.getElementById('clear-storage-btn'),
                 recalculateBtn: document.getElementById('recalculate-btn'),
@@ -626,7 +705,7 @@
                 editItemName: document.getElementById('edit-item-name'),
                 editItemPrice: document.getElementById('edit-item-price'),
                 editItemTaxTier: document.getElementById('edit-item-tax-tier'),
-                editItemMembersDropdown: document.getElementById('edit-item-members-dropdown'),
+                editItemMembersSlot: document.getElementById('edit-item-members-slot'),
 
                 addMemberForm: document.getElementById('add-member-form'),
                 newMemberName: document.getElementById('new-member-name'),
@@ -640,16 +719,13 @@
                 itemName: document.getElementById('item-name'),
                 itemPrice: document.getElementById('item-price'),
                 itemTaxTier: document.getElementById('item-tax-tier'),
-                itemMembersDropdown: document.getElementById('item-members-dropdown'),
+                itemMembersSlot: document.getElementById('item-members-slot'),
                 itemsTableBody: document.getElementById('items-table-body'),
                 
                 coverageRulesContainer: document.getElementById('coverage-rules-container'),
                 breakdownCardsList: document.getElementById('breakdown-cards-list'),
 
                 grandTotalAmount: document.getElementById('grand-total-amount'),
-                summarySubtotal: document.getElementById('summary-subtotal'),
-                summarySvc: document.getElementById('summary-svc'),
-                summarySst: document.getElementById('summary-sst'),
 
                 taxModal: document.getElementById('tax-modal'),
                 openTaxModalBtn: document.getElementById('open-tax-modal-btn'),
@@ -709,6 +785,36 @@
                 saveState();
             });
 
+            elements.billDiscount?.addEventListener('input', (e) => {
+                state.discount = parseFloat(e.target.value) || 0;
+                calculateAndRenderBreakdown();
+                saveState();
+            });
+
+            elements.receiptTotal?.addEventListener('input', (e) => {
+                const val = parseFloat(e.target.value);
+                state.receiptTotal = isNaN(val) ? null : val;
+                calculateAndRenderBreakdown();
+                saveState();
+            });
+
+            elements.sstOnSvc?.addEventListener('change', (e) => {
+                state.sstOnServiceCharge = e.target.checked;
+                calculateAndRenderBreakdown();
+                saveState();
+            });
+
+            elements.round5Sen?.addEventListener('change', (e) => {
+                state.roundTo5Sen = e.target.checked;
+                calculateAndRenderBreakdown();
+                saveState();
+            });
+
+            elements.itemTaxTier?.addEventListener('change', (e) => {
+                state.defaultTaxTierId = e.target.value;
+                saveState();
+            });
+
             elements.paidByMember?.addEventListener('change', (e) => {
                 state.paidByMemberId = e.target.value;
                 calculateAndRenderBreakdown();
@@ -749,7 +855,12 @@
                 state.merchant = '';
                 state.date = '';
                 state.paidByMemberId = '';
-                
+                state.discount = 0;
+                state.receiptTotal = null;
+                // Every receipt is different: make the user tick the charges again
+                state.serviceChargeEnabled = false;
+                state.sstEnabled = false;
+
                 if (elements.receiptMerchant) elements.receiptMerchant.value = '';
                 if (elements.receiptDate) elements.receiptDate.value = '';
                 if (elements.paidByMember) elements.paidByMember.value = '';
@@ -773,6 +884,7 @@
                     elements.paidByMember?.focus();
                     return;
                 }
+                if (!checkAllItemsAssigned()) return;
                 calculateAndRenderBreakdown();
                 showToast('Calculation updated!');
             });
@@ -786,10 +898,14 @@
                 const name = elements.editItemName.value.trim();
                 const price = parseFloat(elements.editItemPrice.value);
                 const taxTierId = elements.editItemTaxTier.value;
-                const assignedMemberId = elements.editItemMembersDropdown.value;
+                const assignedMemberIds = getPickerSelection('edit-item-picker');
 
                 if (!name || isNaN(price) || price <= 0) {
                     showToast('Please enter a valid item name and price', true);
+                    return;
+                }
+                if (assignedMemberIds.length === 0) {
+                    showToast('Please tick at least one member who ate this', true);
                     return;
                 }
 
@@ -798,7 +914,7 @@
                     item.name = name;
                     item.price = price;
                     item.taxTierId = taxTierId;
-                    item.assignedMemberIds = assignedMemberId ? [assignedMemberId] : [];
+                    item.assignedMemberIds = assignedMemberIds;
 
                     showToast(`Updated item ${name}`);
                     elements.editItemModal.classList.add('hidden');
@@ -821,8 +937,6 @@
             elements.importOcrItemsBtn?.addEventListener('click', () => {
                 const selectedCheckboxes = document.querySelectorAll('.ocr-item-cb:checked');
                 let count = 0;
-                const defaultPrimary = state.members.find(m => m.role === 'primary') || state.members[0];
-                const defaultMemberId = defaultPrimary ? defaultPrimary.id : null;
                 // Use the tier currently picked in the Add Item form (tier 0 is usually "Tax Free")
                 const defaultTaxTier = elements.itemTaxTier?.value || (state.taxTiers[0] ? state.taxTiers[0].id : null);
 
@@ -835,14 +949,14 @@
                             name: item.name,
                             price: item.price,
                             taxTierId: defaultTaxTier,
-                            assignedMemberIds: defaultMemberId ? [defaultMemberId] : []
+                            assignedMemberIds: [] // eaters must be ticked in the table before calculating
                         });
                         count++;
                     }
                 });
 
                 if (count > 0) {
-                    showToast(`Imported ${count} items from receipt`);
+                    showToast(`Imported ${count} items — now tick who ate each one`);
                     elements.ocrModal.classList.add('hidden');
                     renderAll();
                 }
@@ -913,6 +1027,32 @@
                 const val = parseFloat(e.target.value);
                 state.serviceChargeRate = isNaN(val) ? 0 : val;
                 calculateAndRenderBreakdown();
+                saveState();
+            });
+
+            elements.svcEnabled?.addEventListener('change', (e) => {
+                state.serviceChargeEnabled = e.target.checked;
+                renderAll();
+            });
+
+            elements.sstEnabled?.addEventListener('change', (e) => {
+                state.sstEnabled = e.target.checked;
+                if (state.sstEnabled) {
+                    // Apply the chosen SST rate to items that currently have none
+                    const rateOf = id => (state.taxTiers.find(t => t.id === id) || { rate: 0 }).rate;
+                    state.defaultTaxTierId = getSstTierId();
+                    state.items.forEach(i => {
+                        if (!rateOf(i.taxTierId)) i.taxTierId = state.defaultTaxTierId;
+                    });
+                }
+                renderAll();
+            });
+
+            elements.sstRate?.addEventListener('change', (e) => {
+                state.defaultTaxTierId = e.target.value;
+                state.items.forEach(i => i.taxTierId = e.target.value);
+                renderAll();
+                showToast('SST rate applied to all items');
             });
 
             elements.addTierBtn?.addEventListener('click', () => {
@@ -938,14 +1078,12 @@
             });
 
             elements.openTaxModalBtn?.addEventListener('click', () => {
-                elements.globalServiceRate.value = state.serviceChargeRate;
+                elements.sstOnSvc.checked = !!state.sstOnServiceCharge;
                 renderTaxModalTiers();
                 elements.taxModal.classList.remove('hidden');
             });
             elements.closeTaxModalBtn?.addEventListener('click', () => elements.taxModal?.classList.add('hidden'));
             elements.saveTaxSettingsBtn?.addEventListener('click', () => {
-                const val = parseFloat(elements.globalServiceRate.value);
-                state.serviceChargeRate = isNaN(val) ? 0 : val;
                 elements.taxModal.classList.add('hidden');
                 renderAll();
                 showToast('Tax settings saved!');
@@ -956,14 +1094,14 @@
                 const name = elements.itemName.value.trim();
                 const price = parseFloat(elements.itemPrice.value);
                 const taxTierId = elements.itemTaxTier.value;
-                const assignedMemberId = elements.itemMembersDropdown.value;
+                const assignedMemberIds = getPickerSelection('add-item-picker');
 
                 if (!name || isNaN(price) || price <= 0) {
                     showToast('Please enter a valid item name and price', true);
                     return;
                 }
-                if (!assignedMemberId) {
-                    showToast('Please select a member for this item', true);
+                if (assignedMemberIds.length === 0) {
+                    showToast('Please tick at least one member who ate this', true);
                     return;
                 }
 
@@ -972,11 +1110,12 @@
                     name,
                     price,
                     taxTierId,
-                    assignedMemberIds: [assignedMemberId]
+                    assignedMemberIds
                 });
 
                 elements.itemName.value = '';
                 elements.itemPrice.value = '';
+                elements.itemMembersSlot.innerHTML = memberPickerHtml('add-item-picker', []);
                 showToast(`Added ${name}`);
                 renderAll();
             });
@@ -987,6 +1126,7 @@
                     elements.paidByMember?.focus();
                     return;
                 }
+                if (!checkAllItemsAssigned()) return;
                 elements.whatsappTextArea.value = generateWhatsAppText();
                 elements.whatsappModal.classList.remove('hidden');
             });
@@ -1005,11 +1145,123 @@
             elements.darkModeToggle?.addEventListener('click', () => {
                 document.documentElement.classList.toggle('dark');
             });
+
+            // Close member pickers on outside click, page scroll, resize or Escape
+            document.addEventListener('pointerdown', (e) => {
+                if (!e.target.closest('.member-picker')) closeMemberPickers();
+            });
+            window.addEventListener('scroll', (e) => {
+                if (!e.target.closest?.('.picker-panel')) closeMemberPickers();
+            }, true);
+            window.addEventListener('resize', closeMemberPickers);
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') closeMemberPickers();
+            });
         }
 
         // --- HELPER DIALOG FUNCTIONS ---
         function getFamilyColor(idx) {
             return FAMILY_COLORS[idx % FAMILY_COLORS.length];
+        }
+
+        // --- MULTI-SELECT MEMBER PICKER (dropdown with checkboxes) ---
+        function roleLabel(role) {
+            return role === 'primary' ? 'Primary' : (role === 'dependent' ? 'Dependent' : 'Guest');
+        }
+
+        function memberNamesLabel(ids) {
+            const names = ids.map(id => state.members.find(m => m.id === id)?.name).filter(Boolean);
+            return names.length ? names.join(', ') : 'Select who ate this…';
+        }
+
+        function pickerLabelClass(selectedIds) {
+            return 'picker-label truncate ' + (selectedIds.length ? 'text-slate-700 dark:text-slate-200' : 'text-slate-400');
+        }
+
+        // itemId: when set, ticking a box updates that item immediately (used by table rows)
+        function memberPickerHtml(pickerId, selectedIds, itemId = '') {
+            const options = state.members.map(m => `
+                <label class="flex items-center gap-2 px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer">
+                    <input type="checkbox" value="${m.id}" ${selectedIds.includes(m.id) ? 'checked' : ''} onchange="onMemberPickerChange('${pickerId}')" class="picker-cb rounded text-emerald-600 focus:ring-emerald-500">
+                    <span class="flex-1 text-slate-700 dark:text-slate-200">${m.name}</span>
+                    <span class="text-[10px] text-slate-400">${roleLabel(m.role)}</span>
+                </label>
+            `).join('');
+
+            return `
+                <div id="${pickerId}" class="member-picker" data-item-id="${itemId}">
+                    <button type="button" onclick="toggleMemberPicker('${pickerId}')" class="w-full flex items-center justify-between gap-2 px-3 py-2 text-xs text-left border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500">
+                        <span class="${pickerLabelClass(selectedIds)}">${memberNamesLabel(selectedIds)}</span>
+                        <i class="fa-solid fa-chevron-down text-[10px] text-slate-400"></i>
+                    </button>
+                    <div class="picker-panel hidden fixed z-[60] py-1 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl max-h-64 overflow-y-auto custom-scrollbar">
+                        <div class="flex justify-between px-3 py-1.5 border-b border-slate-100 dark:border-slate-700 text-[11px]">
+                            <button type="button" onclick="setAllInPicker('${pickerId}', true)" class="text-emerald-600 dark:text-emerald-400 hover:underline">Select all</button>
+                            <button type="button" onclick="setAllInPicker('${pickerId}', false)" class="text-slate-400 hover:underline">Clear</button>
+                        </div>
+                        ${options}
+                    </div>
+                </div>
+            `;
+        }
+
+        function getPickerSelection(pickerId) {
+            const picker = document.getElementById(pickerId);
+            return picker ? Array.from(picker.querySelectorAll('.picker-cb:checked')).map(cb => cb.value) : [];
+        }
+
+        function toggleMemberPicker(pickerId) {
+            const picker = document.getElementById(pickerId);
+            const panel = picker?.querySelector('.picker-panel');
+            if (!panel) return;
+            const wasOpen = !panel.classList.contains('hidden');
+            closeMemberPickers();
+            if (wasOpen) return;
+
+            // Fixed positioning so the list isn't clipped by the scrollable items table
+            const rect = picker.querySelector('button').getBoundingClientRect();
+            const width = Math.max(rect.width, 200);
+            panel.style.width = `${width}px`;
+            panel.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - width - 8))}px`;
+            panel.classList.remove('hidden');
+            const fitsBelow = window.innerHeight - rect.bottom > panel.offsetHeight + 8;
+            panel.style.top = (!fitsBelow && rect.top > panel.offsetHeight + 8)
+                ? `${rect.top - panel.offsetHeight - 4}px`
+                : `${rect.bottom + 4}px`;
+        }
+
+        function closeMemberPickers() {
+            document.querySelectorAll('.picker-panel:not(.hidden)').forEach(p => p.classList.add('hidden'));
+        }
+
+        function setAllInPicker(pickerId, checked) {
+            document.getElementById(pickerId)?.querySelectorAll('.picker-cb').forEach(cb => cb.checked = checked);
+            onMemberPickerChange(pickerId);
+        }
+
+        function onMemberPickerChange(pickerId) {
+            const picker = document.getElementById(pickerId);
+            if (!picker) return;
+            const selectedIds = getPickerSelection(pickerId);
+            const label = picker.querySelector('.picker-label');
+            label.textContent = memberNamesLabel(selectedIds);
+            label.className = pickerLabelClass(selectedIds);
+
+            const item = state.items.find(i => i.id === picker.dataset.itemId);
+            if (item) {
+                item.assignedMemberIds = selectedIds;
+                refreshItemRowStatus(item);
+                calculateAndRenderBreakdown();
+                saveState();
+            }
+        }
+
+        function checkAllItemsAssigned() {
+            const unassigned = state.items.filter(i => i.assignedMemberIds.length === 0);
+            if (unassigned.length === 0) return true;
+            showToast(`${unassigned.length} item(s) have no eater yet — tick who ate them first`, true);
+            document.getElementById(`item-row-${unassigned[0].id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return false;
         }
 
         async function handleOcrFileUpload(event) {
@@ -1064,8 +1316,13 @@
                     { name: '豆 Tofu (8.00/ea)', price: 8.00 }
                 ];
 
+                // Yip Kee: 6% service charge, no SST, printed total RM 242.75
+                state.serviceChargeEnabled = true;
                 state.serviceChargeRate = 6;
-                if (elements.globalServiceRate) elements.globalServiceRate.value = 6;
+                state.sstEnabled = false;
+                state.receiptTotal = 242.75;
+                renderChargesPanel();
+                if (elements.receiptTotal) elements.receiptTotal.value = 242.75;
                 if (elements.ocrDetectedSvc) {
                     elements.ocrDetectedSvc.textContent = "Detected: Service Charge 6%";
                 }
@@ -1104,6 +1361,7 @@
             renderItemsTable();
             renderCoverageRules();
             renderPayerSelectOptions();
+            renderChargesPanel();
             calculateAndRenderBreakdown();
             saveState();
         }
@@ -1184,16 +1442,10 @@
         }
 
         function renderItemMemberDropdownOptions() {
-            if (!elements.itemMembersDropdown) return;
-            elements.itemMembersDropdown.innerHTML = '';
-
-            state.members.forEach(m => {
-                const opt = document.createElement('option');
-                opt.value = m.id;
-                let roleLabel = m.role === 'primary' ? 'Primary' : (m.role === 'dependent' ? 'Dependent' : 'Guest');
-                opt.textContent = `${m.name} (${roleLabel})`;
-                elements.itemMembersDropdown.appendChild(opt);
-            });
+            if (!elements.itemMembersSlot) return;
+            // Keep current ticks across re-renders, minus anyone who was removed
+            const selected = getPickerSelection('add-item-picker').filter(id => state.members.some(m => m.id === id));
+            elements.itemMembersSlot.innerHTML = memberPickerHtml('add-item-picker', selected);
         }
 
         function renderPayerSelectOptions() {
@@ -1218,12 +1470,49 @@
 
             if (elements.receiptMerchant) elements.receiptMerchant.value = state.merchant || '';
             if (elements.receiptDate) elements.receiptDate.value = state.date || '';
+            if (elements.billDiscount) elements.billDiscount.value = state.discount ? state.discount : '';
+            if (elements.receiptTotal) elements.receiptTotal.value = state.receiptTotal ?? '';
         }
 
         function renderTaxDropdowns() {
             const optionsHtml = state.taxTiers.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
-            if (elements.itemTaxTier) elements.itemTaxTier.innerHTML = optionsHtml;
+            if (elements.itemTaxTier) {
+                elements.itemTaxTier.innerHTML = optionsHtml;
+                elements.itemTaxTier.value = getSstTierId();
+            }
             if (elements.editItemTaxTier) elements.editItemTaxTier.innerHTML = optionsHtml;
+        }
+
+        // The SST tier new items get: the chosen default if it charges tax, else the first taxed tier
+        function getSstTierId() {
+            const taxed = state.taxTiers.filter(t => t.rate > 0);
+            return taxed.some(t => t.id === state.defaultTaxTierId) ? state.defaultTaxTierId : (taxed[0]?.id || state.defaultTaxTierId);
+        }
+
+        // Syncs the "Charges on this receipt" ticks and hides SST pickers when SST isn't charged
+        function renderChargesPanel() {
+            if (!elements.svcEnabled) return;
+            elements.svcEnabled.checked = !!state.serviceChargeEnabled;
+            elements.globalServiceRate.value = state.serviceChargeRate;
+            elements.globalServiceRate.disabled = !state.serviceChargeEnabled;
+
+            elements.sstEnabled.checked = !!state.sstEnabled;
+            elements.sstRate.innerHTML = state.taxTiers.filter(t => t.rate > 0)
+                .map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+            elements.sstRate.value = getSstTierId();
+            elements.sstRate.disabled = !state.sstEnabled;
+            elements.sstHint.classList.toggle('hidden', !state.sstEnabled);
+            elements.itemTaxTier?.classList.toggle('hidden', !state.sstEnabled);
+
+            elements.round5Sen.checked = state.roundTo5Sen !== false;
+        }
+
+        function updateItemTier(itemId, tierId) {
+            const item = state.items.find(i => i.id === itemId);
+            if (!item) return;
+            item.taxTierId = tierId;
+            calculateAndRenderBreakdown();
+            saveState();
         }
 
         function renderTaxModalTiers() {
@@ -1267,23 +1556,24 @@
             }
 
             state.items.forEach(item => {
-                const taxTier = state.taxTiers.find(t => t.id === item.taxTierId) || state.taxTiers[0];
-                const eatenByNames = item.assignedMemberIds.map(id => {
-                    const m = state.members.find(mem => mem.id === id);
-                    return m ? m.name : id;
-                }).join(', ');
+                const tierOptions = state.taxTiers.map(t =>
+                    `<option value="${t.id}" ${t.id === item.taxTierId ? 'selected' : ''}>${t.rate}%</option>`
+                ).join('');
 
                 const tr = document.createElement('tr');
-                tr.className = 'hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors';
+                tr.id = `item-row-${item.id}`;
                 tr.innerHTML = `
                     <td class="py-2.5 px-3 font-semibold text-slate-800 dark:text-slate-100">${item.name}</td>
-                    <td class="py-2.5 px-3 text-slate-600 dark:text-slate-300 max-w-[150px] truncate" title="${eatenByNames}">${eatenByNames || 'Unassigned'}</td>
+                    <td class="py-2 px-3 min-w-[160px] max-w-[220px]">${memberPickerHtml(`picker-${item.id}`, item.assignedMemberIds, item.id)}</td>
                     <td class="py-2.5 px-3">
-                        <span class="px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
-                            ${taxTier.name}
-                        </span>
+                        ${!state.sstEnabled ? `<span class="text-slate-300 dark:text-slate-600">—</span>` : `<select onchange="updateItemTier('${item.id}', this.value)" title="SST tier" class="px-1.5 py-1 text-[11px] font-medium bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border border-transparent rounded outline-none focus:ring-2 focus:ring-emerald-500">
+                            ${tierOptions}
+                        </select>`}
                     </td>
-                    <td class="py-2.5 px-3 text-right font-bold text-slate-800 dark:text-slate-100">RM ${item.price.toFixed(2)}</td>
+                    <td class="py-2.5 px-3 text-right whitespace-nowrap">
+                        <div class="font-bold text-slate-800 dark:text-slate-100">RM ${item.price.toFixed(2)}</div>
+                        <div class="per-head text-[10px]"></div>
+                    </td>
                     <td class="py-2.5 px-3 text-center space-x-1">
                         <button onclick="openEditItemModal('${item.id}')" class="p-1 text-slate-400 hover:text-emerald-600 transition-colors" title="Edit Item">
                             <i class="fa-solid fa-pen"></i>
@@ -1294,7 +1584,27 @@
                     </td>
                 `;
                 elements.itemsTableBody.appendChild(tr);
+                refreshItemRowStatus(item);
             });
+        }
+
+        // Highlights rows with no eater and shows the per-person price for shared items
+        function refreshItemRowStatus(item) {
+            const tr = document.getElementById(`item-row-${item.id}`);
+            if (!tr) return;
+            const n = item.assignedMemberIds.length;
+            tr.className = n === 0
+                ? 'bg-amber-50 dark:bg-amber-950/30 transition-colors'
+                : 'hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors';
+
+            const perHead = tr.querySelector('.per-head');
+            if (n === 0) {
+                perHead.className = 'per-head text-[10px] font-semibold text-amber-600 dark:text-amber-400';
+                perHead.textContent = 'Needs eater';
+            } else {
+                perHead.className = 'per-head text-[10px] text-slate-400';
+                perHead.textContent = n > 1 ? `÷${n} = RM ${(item.price / n).toFixed(2)} each` : '';
+            }
         }
 
         function openEditItemModal(itemId) {
@@ -1307,15 +1617,7 @@
             renderTaxDropdowns();
             elements.editItemTaxTier.value = item.taxTierId;
 
-            elements.editItemMembersDropdown.innerHTML = '';
-            state.members.forEach(m => {
-                const opt = document.createElement('option');
-                opt.value = m.id;
-                let roleLabel = m.role === 'primary' ? 'Primary' : (m.role === 'dependent' ? 'Dependent' : 'Guest');
-                opt.textContent = `${m.name} (${roleLabel})`;
-                if (item.assignedMemberIds.includes(m.id)) opt.selected = true;
-                elements.editItemMembersDropdown.appendChild(opt);
-            });
+            elements.editItemMembersSlot.innerHTML = memberPickerHtml('edit-item-picker', item.assignedMemberIds);
 
             elements.editItemModal.classList.remove('hidden');
         }
@@ -1423,45 +1725,117 @@
         }
 
         // --- CALCULATIONS & BREAKDOWN ---
+        function round2(x) {
+            return Math.round((x + Number.EPSILON) * 100) / 100;
+        }
+
+        // Malaysian rounding mechanism: bill totals go to the nearest 5 sen
+        function roundTo5Sen(x) {
+            return Math.round(round2(x) * 20) / 20;
+        }
+
+        function formatRM(x) {
+            const v = round2(x);
+            return `${v < 0 ? '-' : ''}RM ${Math.abs(v).toFixed(2)}`;
+        }
+
+        // Works the bill out the way Malaysian receipts do:
+        //   subtotal − discount → service charge % on that
+        //   → SST per tier on that tier's items (plus their service charge if sstOnServiceCharge), each line rounded to 2dp
+        //   → net total rounded to the nearest 5 sen.
+        // The rounded receipt lines are then shared out to members in proportion to what they ate.
+        function computeBill(s) {
+            const per = {};
+            s.members.forEach(m => per[m.id] = { sub: 0, svc: 0, tax: 0 });
+
+            const subtotal = round2(s.items.reduce((sum, i) => sum + i.price, 0));
+            const discount = round2(Math.min(Math.max(parseFloat(s.discount) || 0, 0), subtotal));
+            const netSubtotal = round2(subtotal - discount);
+            const factor = subtotal > 0 ? netSubtotal / subtotal : 0;
+            const svcRate = s.serviceChargeEnabled ? (parseFloat(s.serviceChargeRate) || 0) / 100 : 0;
+            const serviceCharge = round2(netSubtotal * svcRate);
+
+            const noSst = { id: 'none', name: 'No SST', rate: 0 };
+            const tierOf = item => (s.sstEnabled && s.taxTiers.find(t => t.id === item.taxTierId)) || noSst;
+            const taxBaseOf = item => item.price * factor * (1 + (s.sstOnServiceCharge ? svcRate : 0));
+
+            const taxLines = {};
+            s.items.forEach(item => {
+                const tier = tierOf(item);
+                if (!tier.rate) return;
+                taxLines[tier.id] = taxLines[tier.id] || { name: tier.name, rate: tier.rate, rawTaxable: 0 };
+                taxLines[tier.id].rawTaxable += taxBaseOf(item);
+            });
+            Object.values(taxLines).forEach(t => {
+                t.taxable = round2(t.rawTaxable);
+                t.amount = round2(t.taxable * t.rate / 100);
+            });
+            const totalTax = round2(Object.values(taxLines).reduce((sum, t) => sum + t.amount, 0));
+
+            const totalBeforeRounding = round2(netSubtotal + serviceCharge + totalTax);
+            const netTotal = s.roundTo5Sen === false ? totalBeforeRounding : roundTo5Sen(totalBeforeRounding);
+            const roundingAdj = round2(netTotal - totalBeforeRounding);
+
+            s.items.forEach(item => {
+                const n = item.assignedMemberIds.length;
+                if (n === 0) return;
+                const line = taxLines[tierOf(item).id];
+                const sub = item.price * factor;
+                const svc = subtotal > 0 ? (item.price / subtotal) * serviceCharge : 0;
+                const tax = line && line.rawTaxable > 0 ? (taxBaseOf(item) / line.rawTaxable) * line.amount : 0;
+                item.assignedMemberIds.forEach(id => {
+                    if (!per[id]) return;
+                    per[id].sub += sub / n;
+                    per[id].svc += svc / n;
+                    per[id].tax += tax / n;
+                });
+            });
+
+            return {
+                subtotal, discount, netSubtotal, serviceCharge,
+                taxLines: Object.values(taxLines), totalTax,
+                totalBeforeRounding, roundingAdj, netTotal, per
+            };
+        }
+
+        function renderBillSummary(bill) {
+            elements.grandTotalAmount.textContent = formatRM(bill.netTotal);
+
+            const cells = [['Subtotal', bill.subtotal]];
+            if (bill.discount > 0) cells.push(['Discount', -bill.discount]);
+            cells.push(state.serviceChargeEnabled ? [`Svc Charge ${state.serviceChargeRate}%`, bill.serviceCharge] : ['No Svc Charge', 0]);
+            if (bill.taxLines.length === 0) cells.push(['No SST', 0]);
+            bill.taxLines.forEach(t => cells.push([`SST ${t.rate}%`, t.amount]));
+            if (bill.roundingAdj !== 0) cells.push(['Rounding', bill.roundingAdj]);
+
+            elements.summaryGrid.innerHTML = cells.map(([label, value]) => `
+                <div>
+                    <span class="text-emerald-200 block text-[11px]">${label}</span>
+                    <span class="font-bold">${formatRM(value)}</span>
+                </div>
+            `).join('');
+        }
+
+        function setMatchingBadge(tone, icon, text) {
+            const tones = {
+                ok: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/80 dark:text-emerald-300',
+                warn: 'bg-amber-100 text-amber-700 dark:bg-amber-950/80 dark:text-amber-300',
+                bad: 'bg-rose-100 text-rose-700 dark:bg-rose-950/80 dark:text-rose-300',
+            };
+            elements.matchingStatusBadge.className = `px-2.5 py-0.5 text-xs font-medium rounded-full ${tones[tone]} flex items-center gap-1`;
+            elements.matchingStatusBadge.innerHTML = `<i class="fa-solid ${icon}"></i> ${text}`;
+        }
+
         function calculateAndRenderBreakdown() {
-            let totalSubtotal = 0;
-            let totalSst = 0;
-            let totalSvc = 0;
+            const bill = computeBill(state);
+            renderBillSummary(bill);
 
-            const memberSubtotals = {};
-            const memberTaxes = {};
-
-            state.members.forEach(m => {
-                memberSubtotals[m.id] = 0;
-                memberTaxes[m.id] = 0;
-            });
-
-            state.items.forEach(item => {
-                totalSubtotal += item.price;
-                const taxTier = state.taxTiers.find(t => t.id === item.taxTierId) || { rate: 0 };
-                const itemTax = item.price * (taxTier.rate / 100);
-                totalSst += itemTax;
-
-                if (item.assignedMemberIds.length > 0) {
-                    const splitPrice = item.price / item.assignedMemberIds.length;
-                    const splitTax = itemTax / item.assignedMemberIds.length;
-
-                    item.assignedMemberIds.forEach(mId => {
-                        if (memberSubtotals[mId] !== undefined) {
-                            memberSubtotals[mId] += splitPrice;
-                            memberTaxes[mId] += splitTax;
-                        }
-                    });
-                }
-            });
-
-            totalSvc = totalSubtotal * (state.serviceChargeRate / 100);
-            const grandTotal = totalSubtotal + totalSst + totalSvc;
-
-            elements.grandTotalAmount.textContent = `RM ${grandTotal.toFixed(2)}`;
-            elements.summarySubtotal.textContent = `RM ${totalSubtotal.toFixed(2)}`;
-            elements.summarySvc.textContent = `RM ${totalSvc.toFixed(2)}`;
-            elements.summarySst.textContent = `RM ${totalSst.toFixed(2)}`;
+            const blank = () => ({ sub: 0, svc: 0, tax: 0 });
+            const addTo = (target, share, k = 1) => {
+                target.sub += share.sub / k;
+                target.svc += share.svc / k;
+                target.tax += share.tax / k;
+            };
 
             const primaries = state.members.filter(m => m.role === 'primary');
             const primaryBreakdowns = {};
@@ -1469,55 +1843,51 @@
             primaries.forEach(p => {
                 primaryBreakdowns[p.id] = {
                     primary: p,
-                    ownSubtotal: memberSubtotals[p.id] || 0,
-                    ownTax: memberTaxes[p.id] || 0,
+                    own: bill.per[p.id] || blank(),
                     dependents: [],
-                    dependentsSubtotal: 0,
-                    dependentsTax: 0,
-                    coveredGuestsShare: 0,
-                    coveredGuestsSubtotal: 0,
+                    guests: blank(),
                     svcShare: 0,
+                    roundingShare: 0,
                     finalTotal: 0
                 };
             });
 
             state.members.filter(m => m.role === 'dependent').forEach(dep => {
                 if (dep.parentId && primaryBreakdowns[dep.parentId]) {
-                    const depSub = memberSubtotals[dep.id] || 0;
-                    const depTax = memberTaxes[dep.id] || 0;
-
-                    primaryBreakdowns[dep.parentId].dependents.push({
-                        member: dep,
-                        subtotal: depSub,
-                        tax: depTax
-                    });
-
-                    primaryBreakdowns[dep.parentId].dependentsSubtotal += depSub;
-                    primaryBreakdowns[dep.parentId].dependentsTax += depTax;
+                    primaryBreakdowns[dep.parentId].dependents.push({ member: dep, ...(bill.per[dep.id] || blank()) });
                 }
             });
 
             state.members.filter(m => m.role === 'standalone').forEach(guest => {
-                const guestSub = memberSubtotals[guest.id] || 0;
-                const guestTax = memberTaxes[guest.id] || 0;
-                const guestTotalBeforeSvc = guestSub + guestTax;
-
+                const share = bill.per[guest.id] || blank();
                 const rule = state.coverageRules[guest.id] || { mode: 'split_even', coveredByPrimaryIds: primaries.map(p => p.id) };
 
                 if (rule.mode === 'single' && rule.singlePrimaryId && primaryBreakdowns[rule.singlePrimaryId]) {
-                    primaryBreakdowns[rule.singlePrimaryId].coveredGuestsShare += guestTotalBeforeSvc;
-                    primaryBreakdowns[rule.singlePrimaryId].coveredGuestsSubtotal += guestSub;
+                    addTo(primaryBreakdowns[rule.singlePrimaryId].guests, share);
                 } else if (rule.mode === 'split_even' && rule.coveredByPrimaryIds && rule.coveredByPrimaryIds.length > 0) {
                     const validPrimaryIds = rule.coveredByPrimaryIds.filter(id => primaryBreakdowns[id]);
-                    if (validPrimaryIds.length > 0) {
-                        const share = guestTotalBeforeSvc / validPrimaryIds.length;
-                        const subShare = guestSub / validPrimaryIds.length;
-                        validPrimaryIds.forEach(pId => {
-                            primaryBreakdowns[pId].coveredGuestsShare += share;
-                            primaryBreakdowns[pId].coveredGuestsSubtotal += subShare;
-                        });
-                    }
+                    validPrimaryIds.forEach(pId => addTo(primaryBreakdowns[pId].guests, share, validPrimaryIds.length));
                 }
+            });
+
+            primaries.forEach(p => {
+                const b = primaryBreakdowns[p.id];
+                b.svcShare = b.own.svc + b.guests.svc + b.dependents.reduce((sum, d) => sum + d.svc, 0);
+                b.finalTotal = b.own.sub + b.own.tax + b.guests.sub + b.guests.tax
+                    + b.dependents.reduce((sum, d) => sum + d.sub + d.tax, 0) + b.svcShare;
+            });
+
+            // The 5-sen rounding is absorbed by whoever paid the bill (pro-rata if nobody is picked yet)
+            const frontBreakdown = primaryBreakdowns[state.paidByMemberId];
+            const preRoundingSum = primaries.reduce((sum, p) => sum + primaryBreakdowns[p.id].finalTotal, 0);
+            primaries.forEach(p => {
+                const b = primaryBreakdowns[p.id];
+                if (frontBreakdown) {
+                    b.roundingShare = b === frontBreakdown ? bill.roundingAdj : 0;
+                } else {
+                    b.roundingShare = preRoundingSum > 0 ? (b.finalTotal / preRoundingSum) * bill.roundingAdj : 0;
+                }
+                b.finalTotal += b.roundingShare;
             });
 
             let calculatedSumOfPayers = 0;
@@ -1526,13 +1896,6 @@
             elements.breakdownCardsList.innerHTML = '';
             primaries.forEach((p, idx) => {
                 const b = primaryBreakdowns[p.id];
-                const subPlusTax = b.ownSubtotal + b.ownTax + b.dependentsSubtotal + b.dependentsTax + b.coveredGuestsShare;
-
-                // Service charge is levied on the pre-tax subtotal, so share it out by subtotal
-                const attributedSubtotal = b.ownSubtotal + b.dependentsSubtotal + b.coveredGuestsSubtotal;
-                b.svcShare = totalSubtotal > 0 ? (attributedSubtotal / totalSubtotal) * totalSvc : 0;
-                b.finalTotal = subPlusTax + b.svcShare;
-
                 calculatedSumOfPayers += b.finalTotal;
 
                 const color = getFamilyColor(idx);
@@ -1543,9 +1906,11 @@
                 let depsHtml = b.dependents.map(d => `
                     <div class="flex justify-between text-xs text-slate-500 dark:text-slate-400 pl-2 border-l-2 border-slate-200 dark:border-slate-700">
                         <span>${d.member.name} (Dependent)</span>
-                        <span>RM ${(d.subtotal + d.tax).toFixed(2)}</span>
+                        <span>${formatRM(d.sub + d.tax)}</span>
                     </div>
                 `).join('');
+
+                const guestsTotal = b.guests.sub + b.guests.tax;
 
                 card.innerHTML = `
                     <div class="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-700">
@@ -1563,26 +1928,34 @@
                         </div>
                         <div class="text-right">
                             <span class="text-xs text-slate-400 uppercase tracking-wider block text-[10px]">Total Share</span>
-                            <span class="text-base font-extrabold text-emerald-600 dark:text-emerald-400">RM ${b.finalTotal.toFixed(2)}</span>
+                            <span class="text-base font-extrabold text-emerald-600 dark:text-emerald-400">${formatRM(b.finalTotal)}</span>
                         </div>
                     </div>
 
                     <div class="space-y-1 text-xs">
                         <div class="flex justify-between text-slate-600 dark:text-slate-300">
                             <span>Personal Items + SST:</span>
-                            <span class="font-semibold">RM ${(b.ownSubtotal + b.ownTax).toFixed(2)}</span>
+                            <span class="font-semibold">${formatRM(b.own.sub + b.own.tax)}</span>
                         </div>
                         ${depsHtml}
-                        ${b.coveredGuestsShare > 0 ? `
+                        ${guestsTotal > 0 ? `
                             <div class="flex justify-between text-teal-600 dark:text-teal-400 font-medium">
                                 <span>Share of Covered Guests:</span>
-                                <span>RM ${b.coveredGuestsShare.toFixed(2)}</span>
+                                <span>${formatRM(guestsTotal)}</span>
                             </div>
                         ` : ''}
-                        <div class="flex justify-between text-slate-400 pt-1 border-t border-slate-100 dark:border-slate-700/60">
-                            <span>Svc Charge (${state.serviceChargeRate}%):</span>
-                            <span>RM ${b.svcShare.toFixed(2)}</span>
-                        </div>
+                        ${bill.serviceCharge > 0 ? `
+                            <div class="flex justify-between text-slate-400 pt-1 border-t border-slate-100 dark:border-slate-700/60">
+                                <span>Svc Charge (${state.serviceChargeRate}%):</span>
+                                <span>${formatRM(b.svcShare)}</span>
+                            </div>
+                        ` : ''}
+                        ${Math.abs(b.roundingShare) >= 0.005 ? `
+                            <div class="flex justify-between text-slate-400">
+                                <span>Rounding:</span>
+                                <span>${formatRM(b.roundingShare)}</span>
+                            </div>
+                        ` : ''}
                     </div>
                 `;
                 elements.breakdownCardsList.appendChild(card);
@@ -1590,18 +1963,33 @@
 
             lastPrimaryBreakdowns = primaryBreakdowns;
 
-            elements.reconcilePayersSum.textContent = `RM ${calculatedSumOfPayers.toFixed(2)}`;
-            elements.reconcileGrandTotal.textContent = `RM ${grandTotal.toFixed(2)}`;
+            elements.reconcilePayersSum.textContent = formatRM(calculatedSumOfPayers);
+            elements.reconcileGrandTotal.textContent = formatRM(bill.netTotal);
 
-            const diff = Math.abs(calculatedSumOfPayers - grandTotal);
-            elements.reconcileDifference.textContent = `RM ${diff.toFixed(2)}`;
+            const diff = Math.abs(calculatedSumOfPayers - bill.netTotal);
+            elements.reconcileDifference.textContent = formatRM(diff);
 
-            if (diff < 0.05) {
-                elements.matchingStatusBadge.className = "px-2.5 py-0.5 text-xs font-medium rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950/80 dark:text-emerald-300 flex items-center gap-1";
-                elements.matchingStatusBadge.innerHTML = `<i class="fa-solid fa-check-circle"></i> 100% Matched`;
+            // Optional check against the total printed on the receipt
+            const receiptTotal = parseFloat(state.receiptTotal);
+            const hasReceiptTotal = receiptTotal > 0;
+            const receiptDiff = hasReceiptTotal ? round2(bill.netTotal - receiptTotal) : 0;
+            elements.reconcileReceiptRows.classList.toggle('hidden', !hasReceiptTotal);
+            if (hasReceiptTotal) {
+                elements.reconcileReceiptTotal.textContent = formatRM(receiptTotal);
+                elements.reconcileReceiptDiff.textContent = receiptDiff === 0 ? 'RM 0.00' : `${receiptDiff > 0 ? '+' : ''}${formatRM(receiptDiff)}`;
+                elements.reconcileReceiptDiff.className = `font-bold ${receiptDiff === 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`;
+                elements.reconcileReceiptHint.classList.toggle('hidden', receiptDiff === 0);
+            }
+
+            const unassignedCount = state.items.filter(i => i.assignedMemberIds.length === 0).length;
+            if (unassignedCount > 0) {
+                setMatchingBadge('warn', 'fa-user-slash', `${unassignedCount} item(s) need eaters`);
+            } else if (hasReceiptTotal && receiptDiff !== 0) {
+                setMatchingBadge('bad', 'fa-receipt', 'Differs from receipt');
+            } else if (diff >= 0.05) {
+                setMatchingBadge('warn', 'fa-triangle-exclamation', 'Variance Detected');
             } else {
-                elements.matchingStatusBadge.className = "px-2.5 py-0.5 text-xs font-medium rounded-full bg-amber-100 text-amber-700 dark:bg-amber-950/80 dark:text-amber-300 flex items-center gap-1";
-                elements.matchingStatusBadge.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> Variance Detected`;
+                setMatchingBadge('ok', 'fa-check-circle', hasReceiptTotal ? 'Matches receipt' : '100% Matched');
             }
         }
 
@@ -1669,8 +2057,9 @@
             const member = state.members.find(m => m.id === memberId);
             if (!member) return;
 
-            const itemCount = state.items.filter(i => i.assignedMemberIds.includes(memberId)).length;
-            if (itemCount > 0 && !confirm(`${member.name} has ${itemCount} item(s) assigned. Remove ${member.name} and delete those items?`)) {
+            // Shared items just get re-split among the remaining eaters; items only this member ate need a new eater
+            const soleCount = state.items.filter(i => i.assignedMemberIds.length === 1 && i.assignedMemberIds[0] === memberId).length;
+            if (soleCount > 0 && !confirm(`${member.name} is the only eater of ${soleCount} item(s). Remove ${member.name}? Those items stay on the bill but will need a new eater.`)) {
                 return;
             }
 
@@ -1678,7 +2067,9 @@
             delete state.coverageRules[memberId];
 
             state.members = state.members.filter(m => m.id !== memberId);
-            state.items = state.items.filter(i => !i.assignedMemberIds.includes(memberId));
+            state.items.forEach(i => {
+                i.assignedMemberIds = i.assignedMemberIds.filter(id => id !== memberId);
+            });
 
             elements.editMemberModal?.classList.add('hidden');
             showToast('Member removed');
@@ -1693,10 +2084,17 @@
             text += `------------------------------\n`;
 
             state.items.forEach(i => {
-                text += `• ${i.name}: RM ${i.price.toFixed(2)}\n`;
+                text += `• ${i.name}: RM ${i.price.toFixed(2)} (${memberNamesLabel(i.assignedMemberIds)})\n`;
             });
 
-            text += `\n*Svc Charge (${state.serviceChargeRate}%):* Included\n`;
+            const bill = computeBill(state);
+            text += `------------------------------\n`;
+            text += `Subtotal: ${formatRM(bill.subtotal)}\n`;
+            if (bill.discount > 0) text += `Discount: ${formatRM(-bill.discount)}\n`;
+            if (bill.serviceCharge > 0) text += `Service Charge (${state.serviceChargeRate}%): ${formatRM(bill.serviceCharge)}\n`;
+            bill.taxLines.forEach(t => text += `SST ${t.rate}%: ${formatRM(t.amount)}\n`);
+            if (bill.roundingAdj !== 0) text += `Rounding: ${formatRM(bill.roundingAdj)}\n`;
+            text += `*Net Total: ${formatRM(bill.netTotal)}*\n`;
             text += `------------------------------\n`;
             text += `💳 *FRONT PAID BY:* ${frontPayer ? frontPayer.name : 'Unknown'}\n\n`;
             text += `*SETTLEMENT PAYMENTS:*\n`;
