@@ -163,6 +163,15 @@
                         </button>
                     </form>
 
+                    <!-- Bulk assign: whole receipt shared by the same people -->
+                    <div class="flex flex-col sm:flex-row sm:items-center gap-2 p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700">
+                        <span class="text-xs font-medium text-slate-500 dark:text-slate-400 whitespace-nowrap">Shared by the same people? Assign all items to:</span>
+                        <div id="bulk-members-slot" class="flex-1 min-w-0"></div>
+                        <button type="button" id="apply-all-items-btn" class="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-medium shadow-sm whitespace-nowrap flex items-center justify-center gap-1.5">
+                            <i class="fa-solid fa-users"></i> Apply to all items
+                        </button>
+                    </div>
+
                     <!-- Items List Table -->
                     <div class="overflow-x-auto pt-2">
                         <table class="w-full text-left text-xs">
@@ -720,6 +729,8 @@
                 itemPrice: document.getElementById('item-price'),
                 itemTaxTier: document.getElementById('item-tax-tier'),
                 itemMembersSlot: document.getElementById('item-members-slot'),
+                bulkMembersSlot: document.getElementById('bulk-members-slot'),
+                applyAllItemsBtn: document.getElementById('apply-all-items-btn'),
                 itemsTableBody: document.getElementById('items-table-body'),
                 
                 coverageRulesContainer: document.getElementById('coverage-rules-container'),
@@ -1120,6 +1131,29 @@
                 renderAll();
             });
 
+            elements.applyAllItemsBtn?.addEventListener('click', () => {
+                const ids = getPickerSelection('bulk-picker');
+                if (ids.length === 0) {
+                    showToast('Tick the members who shared the bill first', true);
+                    return;
+                }
+                if (state.items.length === 0) {
+                    showToast('Add or scan items first', true);
+                    return;
+                }
+
+                const sameEaters = i => i.assignedMemberIds.length === ids.length && ids.every(id => i.assignedMemberIds.includes(id));
+                const overwriting = state.items.filter(i => i.assignedMemberIds.length > 0 && !sameEaters(i)).length;
+                if (overwriting > 0 && !confirm(`${overwriting} item(s) already have different eaters. Replace them so all ${state.items.length} items are split between the ticked members?`)) {
+                    return;
+                }
+
+                state.items.forEach(i => i.assignedMemberIds = [...ids]);
+                closeMemberPickers();
+                renderAll();
+                showToast(`All ${state.items.length} items split between ${memberNamesLabel(ids)}`);
+            });
+
             elements.exportWhatsappBtn?.addEventListener('click', () => {
                 if (!state.paidByMemberId) {
                     showToast('Please select who paid the front bill first!', true);
@@ -1444,8 +1478,9 @@
         function renderItemMemberDropdownOptions() {
             if (!elements.itemMembersSlot) return;
             // Keep current ticks across re-renders, minus anyone who was removed
-            const selected = getPickerSelection('add-item-picker').filter(id => state.members.some(m => m.id === id));
-            elements.itemMembersSlot.innerHTML = memberPickerHtml('add-item-picker', selected);
+            const keep = pickerId => getPickerSelection(pickerId).filter(id => state.members.some(m => m.id === id));
+            elements.itemMembersSlot.innerHTML = memberPickerHtml('add-item-picker', keep('add-item-picker'));
+            if (elements.bulkMembersSlot) elements.bulkMembersSlot.innerHTML = memberPickerHtml('bulk-picker', keep('bulk-picker'));
         }
 
         function renderPayerSelectOptions() {
