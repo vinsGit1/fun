@@ -531,8 +531,37 @@
             </div>
 
             <p class="text-xs text-slate-500 dark:text-slate-400">
-                Upload your receipt. Smart AI parses Chinese/English items, quantities, unit prices, and service charge automatically.
+                Upload your receipt. Google Gemini reads Chinese/English items, quantities, service charge, SST, discount and the total.
             </p>
+
+            <!-- Gemini API key: stored only in this browser, sent only to Google -->
+            <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 text-xs">
+                <div id="gemini-key-saved" class="hidden flex items-center justify-between gap-2">
+                    <span class="text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
+                        <i class="fa-solid fa-key text-teal-500"></i> Gemini key saved <span id="gemini-key-masked" class="font-mono text-slate-400"></span>
+                    </span>
+                    <div class="flex gap-3">
+                        <button type="button" id="gemini-key-change-btn" class="text-teal-600 dark:text-teal-400 hover:underline">Change</button>
+                        <button type="button" id="gemini-key-remove-btn" class="text-rose-500 hover:underline">Remove</button>
+                    </div>
+                </div>
+                <div id="gemini-key-form" class="space-y-2">
+                    <label for="gemini-key-input" class="block font-medium text-slate-600 dark:text-slate-300">
+                        Gemini API key <span class="font-normal text-slate-400">· free at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" class="text-teal-600 dark:text-teal-400 underline">aistudio.google.com/apikey</a></span>
+                    </label>
+                    <div class="flex gap-2">
+                        <input type="password" id="gemini-key-input" placeholder="Paste key (AIza…)" autocomplete="off"
+                            class="flex-1 min-w-0 px-2.5 py-1.5 font-mono text-xs border border-slate-200 dark:border-slate-700 dark:bg-slate-900 rounded-lg outline-none focus:ring-2 focus:ring-teal-500">
+                        <button type="button" id="gemini-key-save-btn" class="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-medium">Save</button>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <label for="gemini-model-input" class="text-slate-400">Model</label>
+                        <input type="text" id="gemini-model-input"
+                            class="flex-1 min-w-0 px-2.5 py-1 font-mono text-[11px] border border-slate-200 dark:border-slate-700 dark:bg-slate-900 rounded-lg outline-none focus:ring-2 focus:ring-teal-500">
+                    </div>
+                    <p class="text-[10px] text-slate-400">Saved only in this browser and sent only to Google. Never included in the bill or WhatsApp text.</p>
+                </div>
+            </div>
 
             <!-- File Upload Box -->
             <div class="border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl p-6 text-center hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors cursor-pointer relative" id="drop-zone">
@@ -546,19 +575,21 @@
             <div id="ocr-status-box" class="hidden space-y-2">
                 <div class="flex items-center justify-between text-xs font-medium">
                     <span id="ocr-status-text" class="text-slate-600 dark:text-slate-300">Analyzing image with AI...</span>
-                    <i class="fa-solid fa-circle-notch fa-spin text-teal-600 text-sm"></i>
+                    <i id="ocr-spinner" class="fa-solid fa-circle-notch fa-spin text-teal-600 text-sm"></i>
                 </div>
             </div>
 
             <!-- Detected Items Result List -->
-            <div id="ocr-results-container" class="hidden space-y-2 max-h-56 overflow-y-auto custom-scrollbar">
-                <div class="flex justify-between items-center">
-                    <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Extracted Line Items</span>
-                    <span id="ocr-detected-svc" class="text-xs font-semibold text-teal-600"></span>
-                </div>
-                <div id="ocr-items-list" class="space-y-1">
+            <div id="ocr-results-container" class="hidden space-y-2">
+                <div id="ocr-summary" class="flex flex-wrap gap-1.5"></div>
+                <span class="block text-xs font-semibold text-slate-500 uppercase tracking-wider">Extracted Line Items</span>
+                <div id="ocr-items-list" class="space-y-1 max-h-56 overflow-y-auto custom-scrollbar">
                     <!-- Dynamic OCR items -->
                 </div>
+                <label id="ocr-replace-row" class="hidden flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300 cursor-pointer">
+                    <input type="checkbox" id="ocr-replace-items" checked class="rounded text-teal-600 focus:ring-teal-500">
+                    Replace the <span id="ocr-replace-count"></span> item(s) already on the bill <span class="text-slate-400">(untick to add to them)</span>
+                </label>
             </div>
 
             <div class="flex justify-between items-center pt-3 border-t border-slate-200 dark:border-slate-700">
@@ -678,7 +709,7 @@
         ];
 
         let elements = {};
-        let detectedOcrItems = [];
+        let scannedReceipt = null;
         let lastPrimaryBreakdowns = {};
 
         window.addEventListener('DOMContentLoaded', () => {
@@ -705,7 +736,19 @@
                 reconcileGrandTotal: document.getElementById('reconcile-grand-total'),
                 reconcileDifference: document.getElementById('reconcile-difference'),
                 matchingStatusBadge: document.getElementById('matching-status-badge'),
-                ocrDetectedSvc: document.getElementById('ocr-detected-svc'),
+                ocrSummary: document.getElementById('ocr-summary'),
+                ocrSpinner: document.getElementById('ocr-spinner'),
+                ocrReplaceRow: document.getElementById('ocr-replace-row'),
+                ocrReplaceCount: document.getElementById('ocr-replace-count'),
+                ocrReplaceItems: document.getElementById('ocr-replace-items'),
+                geminiKeySaved: document.getElementById('gemini-key-saved'),
+                geminiKeyForm: document.getElementById('gemini-key-form'),
+                geminiKeyMasked: document.getElementById('gemini-key-masked'),
+                geminiKeyInput: document.getElementById('gemini-key-input'),
+                geminiModelInput: document.getElementById('gemini-model-input'),
+                geminiKeySaveBtn: document.getElementById('gemini-key-save-btn'),
+                geminiKeyChangeBtn: document.getElementById('gemini-key-change-btn'),
+                geminiKeyRemoveBtn: document.getElementById('gemini-key-remove-btn'),
                 editItemModal: document.getElementById('edit-item-modal'),
                 closeEditItemBtn: document.getElementById('close-edit-item-btn'),
                 cancelEditItemBtn: document.getElementById('cancel-edit-item-btn'),
@@ -937,8 +980,29 @@
                 elements.ocrStatusBox.classList.add('hidden');
                 elements.ocrResultsContainer.classList.add('hidden');
                 elements.importOcrItemsBtn.disabled = true;
-                detectedOcrItems = [];
+                scannedReceipt = null;
+                renderGeminiKeyBox();
                 elements.ocrModal.classList.remove('hidden');
+            });
+
+            elements.geminiKeySaveBtn?.addEventListener('click', () => {
+                const key = elements.geminiKeyInput.value.trim() || readLocal(GEMINI_KEY_STORAGE);
+                if (!key) {
+                    showToast('Paste your Gemini API key first', true);
+                    return;
+                }
+                writeLocal(GEMINI_KEY_STORAGE, key);
+                const model = elements.geminiModelInput.value.trim();
+                writeLocal(GEMINI_MODEL_STORAGE, model && model !== DEFAULT_GEMINI_MODEL ? model : '');
+                renderGeminiKeyBox();
+                elements.ocrStatusBox.classList.add('hidden');
+                showToast('Gemini key saved in this browser');
+            });
+            elements.geminiKeyChangeBtn?.addEventListener('click', () => renderGeminiKeyBox(true));
+            elements.geminiKeyRemoveBtn?.addEventListener('click', () => {
+                writeLocal(GEMINI_KEY_STORAGE, '');
+                renderGeminiKeyBox();
+                showToast('Gemini key removed from this browser');
             });
             elements.closeOcrModalBtn?.addEventListener('click', () => elements.ocrModal?.classList.add('hidden'));
             elements.closeOcrBtn?.addEventListener('click', () => elements.ocrModal?.classList.add('hidden'));
@@ -946,31 +1010,43 @@
             elements.ocrFileInput?.addEventListener('change', handleOcrFileUpload);
 
             elements.importOcrItemsBtn?.addEventListener('click', () => {
-                const selectedCheckboxes = document.querySelectorAll('.ocr-item-cb:checked');
-                let count = 0;
-                // Use the tier currently picked in the Add Item form (tier 0 is usually "Tax Free")
-                const defaultTaxTier = elements.itemTaxTier?.value || (state.taxTiers[0] ? state.taxTiers[0].id : null);
+                const r = scannedReceipt;
+                if (!r) return;
+                const selected = Array.from(document.querySelectorAll('.ocr-item-cb:checked'))
+                    .map(cb => r.items[parseInt(cb.value)]).filter(Boolean);
+                if (selected.length === 0) {
+                    showToast('Tick at least one item to import', true);
+                    return;
+                }
 
-                selectedCheckboxes.forEach(cb => {
-                    const idx = parseInt(cb.value);
-                    const item = detectedOcrItems[idx];
-                    if (item) {
-                        state.items.push({
-                            id: 'i_' + Date.now() + Math.random(),
-                            name: item.name,
-                            price: item.price,
-                            taxTierId: defaultTaxTier,
-                            assignedMemberIds: [] // eaters must be ticked in the table before calculating
-                        });
-                        count++;
-                    }
+                const replacing = state.items.length === 0 || elements.ocrReplaceItems.checked;
+                if (replacing) state.items = [];
+
+                // Tick the charges the receipt shows; the user can still change them in "Charges on this receipt"
+                if (r.merchant) state.merchant = r.merchant;
+                if (r.date) state.date = r.date;
+                state.serviceChargeEnabled = r.serviceChargeRate > 0;
+                if (r.serviceChargeRate > 0) state.serviceChargeRate = r.serviceChargeRate;
+                state.sstEnabled = r.sstLines.length > 0;
+                if (state.sstEnabled) state.defaultTaxTierId = tierIdForRate(r.sstLines[0].rate);
+                state.discount = round2((replacing ? 0 : parseFloat(state.discount) || 0) + r.discount);
+                state.receiptTotal = r.total > 0
+                    ? round2((replacing ? 0 : parseFloat(state.receiptTotal) || 0) + r.total)
+                    : (replacing ? null : state.receiptTotal);
+
+                selected.forEach(item => {
+                    state.items.push({
+                        id: 'i_' + Date.now() + Math.random(),
+                        name: item.name,
+                        price: item.price,
+                        taxTierId: tierIdForRate(item.sstRate),
+                        assignedMemberIds: [] // eaters must be ticked before calculating
+                    });
                 });
 
-                if (count > 0) {
-                    showToast(`Imported ${count} items — now tick who ate each one`);
-                    elements.ocrModal.classList.add('hidden');
-                    renderAll();
-                }
+                showToast(`Imported ${selected.length} items — now tick who ate them (or use "Assign all items to")`);
+                elements.ocrModal.classList.add('hidden');
+                renderAll();
             });
 
             elements.newMemberRole?.addEventListener('change', (e) => {
@@ -1298,93 +1374,283 @@
             return false;
         }
 
+        // --- RECEIPT SCANNER (Google Gemini vision, using the user's own API key) ---
+        const GEMINI_KEY_STORAGE = 'bill_splitter_gemini_key';
+        const GEMINI_MODEL_STORAGE = 'bill_splitter_gemini_model';
+        const DEFAULT_GEMINI_MODEL = 'gemini-flash-latest';
+        let scanCounter = 0;
+
+        const RECEIPT_PROMPT = `You are reading a Malaysian restaurant receipt (it may mix English, Chinese and Malay). Extract it exactly as printed.
+Rules:
+- items: one entry per ordered line, using the printed line total (after quantity). Fold modifiers, add-ons, set components and sub-lines without their own price into the parent item's name. If an add-on has its own price but the parent's printed total already includes it, do not list it separately.
+- Skip lines whose total is 0.00 (e.g. promo headers like "H/H-5 H/ Pint 12PM-9PM").
+- name: short readable name; keep both Chinese and English if both are printed.
+- quantity: printed quantity (1 if not shown).
+- sst_rate: the SST / "Service Tax" % that applies to the item, or 0 if the receipt has no SST. If there are several SST rates, work out which items belong to which rate from markers (e.g. *), the tax summary's taxable amounts, or the item type (alcohol is usually 8%, food and soft drinks 6%).
+- subtotal: the printed subtotal exactly (it can be lower than the item sum when a discount was applied; do not correct it).
+- discount: printed discount amount as a positive number, else 0.
+- service_charge_rate: the printed service charge % (e.g. 10 for "Service Charge@10%"), 0 if none. service_charge_amount: its printed amount. Note "Service Tax 6%/8%" is SST, not service charge.
+- sst_lines: each printed SST / service tax line with its rate, taxable amount (if printed) and tax amount. Empty if none.
+- rounding: printed rounding adjustment (negative if it reduces the bill), else 0.
+- total: the final amount payable (Net Total / Total / Jumlah / 总共).
+- merchant: restaurant name, else "". date: YYYY-MM-DD if printed, else "".
+Numbers only, no currency symbols. If the image is not a receipt, return no items.`;
+
+        const RECEIPT_SCHEMA = {
+            type: 'OBJECT',
+            properties: {
+                merchant: { type: 'STRING' },
+                date: { type: 'STRING' },
+                items: {
+                    type: 'ARRAY',
+                    items: {
+                        type: 'OBJECT',
+                        properties: {
+                            name: { type: 'STRING' },
+                            quantity: { type: 'NUMBER' },
+                            total: { type: 'NUMBER' },
+                            sst_rate: { type: 'NUMBER' }
+                        },
+                        required: ['name', 'total']
+                    }
+                },
+                subtotal: { type: 'NUMBER' },
+                discount: { type: 'NUMBER' },
+                service_charge_rate: { type: 'NUMBER' },
+                service_charge_amount: { type: 'NUMBER' },
+                sst_lines: {
+                    type: 'ARRAY',
+                    items: {
+                        type: 'OBJECT',
+                        properties: {
+                            rate: { type: 'NUMBER' },
+                            taxable: { type: 'NUMBER' },
+                            amount: { type: 'NUMBER' }
+                        },
+                        required: ['rate', 'amount']
+                    }
+                },
+                rounding: { type: 'NUMBER' },
+                total: { type: 'NUMBER' }
+            },
+            required: ['items', 'total']
+        };
+
+        function readLocal(key) {
+            try { return localStorage.getItem(key) || ''; } catch (e) { return ''; }
+        }
+
+        function writeLocal(key, value) {
+            try {
+                if (value) localStorage.setItem(key, value);
+                else localStorage.removeItem(key);
+            } catch (e) {
+                console.error('Failed to write local storage', e);
+            }
+        }
+
+        function escapeHtml(text) {
+            return String(text).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+        }
+
+        function renderGeminiKeyBox(forceForm = false) {
+            if (!elements.geminiKeyForm) return;
+            const key = readLocal(GEMINI_KEY_STORAGE);
+            const showForm = forceForm || !key;
+            elements.geminiKeySaved.classList.toggle('hidden', showForm);
+            elements.geminiKeyForm.classList.toggle('hidden', !showForm);
+            elements.geminiKeyMasked.textContent = key ? `••••${key.slice(-4)}` : '';
+            elements.geminiKeyInput.value = '';
+            elements.geminiModelInput.value = readLocal(GEMINI_MODEL_STORAGE) || DEFAULT_GEMINI_MODEL;
+        }
+
+        function setOcrStatus(text, isError = false) {
+            elements.ocrStatusBox.classList.remove('hidden');
+            elements.ocrStatusText.textContent = text;
+            elements.ocrStatusText.className = isError ? 'text-rose-600 dark:text-rose-400' : 'text-slate-600 dark:text-slate-300';
+            elements.ocrSpinner.classList.toggle('hidden', isError);
+        }
+
+        // Phone photos are huge: shrink to ≤2400px as JPEG so the upload is quick but text stays readable
+        function loadImageAsJpeg(file, maxSide = 2400) {
+            return new Promise((resolve, reject) => {
+                const url = URL.createObjectURL(file);
+                const img = new Image();
+                img.onload = () => {
+                    const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+                    const canvas = document.createElement('canvas');
+                    canvas.width = Math.round(img.width * scale);
+                    canvas.height = Math.round(img.height * scale);
+                    canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+                    URL.revokeObjectURL(url);
+                    resolve(canvas.toDataURL('image/jpeg', 0.85).split(',')[1]);
+                };
+                img.onerror = () => {
+                    URL.revokeObjectURL(url);
+                    reject(new Error('Could not open this image. Try a JPG or PNG photo.'));
+                };
+                img.src = url;
+            });
+        }
+
+        async function scanReceiptWithGemini(base64Jpeg) {
+            const key = readLocal(GEMINI_KEY_STORAGE);
+            const model = readLocal(GEMINI_MODEL_STORAGE) || DEFAULT_GEMINI_MODEL;
+
+            let res;
+            try {
+                res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+                    body: JSON.stringify({
+                        contents: [{
+                            parts: [
+                                { inline_data: { mime_type: 'image/jpeg', data: base64Jpeg } },
+                                { text: RECEIPT_PROMPT }
+                            ]
+                        }],
+                        generationConfig: { temperature: 0, responseMimeType: 'application/json', responseSchema: RECEIPT_SCHEMA }
+                    })
+                });
+            } catch (e) {
+                throw new Error('Could not reach Gemini. Check your internet connection.');
+            }
+
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                const msg = data.error?.message || `HTTP ${res.status}`;
+                if (/api key/i.test(msg) || res.status === 401 || res.status === 403) throw new Error('Gemini rejected the API key. Check it and save it again.');
+                if (res.status === 429) throw new Error('Gemini usage limit reached. Wait a minute and try again.');
+                if (res.status === 404) throw new Error(`Gemini model "${model}" not found. Set the model back to ${DEFAULT_GEMINI_MODEL}.`);
+                throw new Error(`Gemini error: ${msg}`);
+            }
+
+            const text = (data.candidates?.[0]?.content?.parts || []).filter(p => !p.thought).map(p => p.text || '').join('');
+            if (!text) throw new Error('Gemini returned nothing for this photo. Try a clearer photo.');
+            return JSON.parse(text);
+        }
+
+        // Cleans up Gemini's answer into what the app needs
+        function normalizeReceipt(r) {
+            const num = v => {
+                const n = typeof v === 'number' ? v : parseFloat(v);
+                return isFinite(n) ? n : 0;
+            };
+
+            const sstLines = (r.sst_lines || [])
+                .map(l => ({ rate: num(l.rate), taxable: num(l.taxable), amount: num(l.amount) }))
+                .filter(l => l.rate > 0 && l.amount > 0);
+            const sstRates = sstLines.map(l => l.rate);
+
+            const items = (r.items || []).map(i => {
+                const qty = num(i.quantity) || 1;
+                const name = String(i.name || 'Item').replace(/[<>]/g, '').trim() || 'Item';
+                // No SST on the receipt → 0; one rate → every item; several → trust Gemini's per-item pick
+                let sstRate = 0;
+                if (sstRates.length === 1) sstRate = sstRates[0];
+                else if (sstRates.length > 1) sstRate = sstRates.includes(num(i.sst_rate)) ? num(i.sst_rate) : sstRates[0];
+                return {
+                    name: qty > 1 && !/[x×]\s*\d/i.test(name) ? `${name} ×${qty}` : name,
+                    price: round2(num(i.total)),
+                    sstRate
+                };
+            }).filter(i => i.price > 0);
+
+            const itemSum = round2(items.reduce((sum, i) => sum + i.price, 0));
+            const subtotal = num(r.subtotal);
+            let discount = round2(Math.abs(num(r.discount)));
+            // Some receipts print a subtotal below the item sum without a discount line
+            if (!discount && subtotal > 0 && subtotal < itemSum - 0.01) discount = round2(itemSum - subtotal);
+
+            return {
+                merchant: String(r.merchant || '').trim(),
+                date: /^\d{4}-\d{2}-\d{2}$/.test(r.date || '') ? r.date : '',
+                items,
+                discount,
+                serviceChargeRate: Math.max(0, num(r.service_charge_rate)),
+                sstLines,
+                total: round2(num(r.total))
+            };
+        }
+
+        // Finds the tax tier for an SST rate, creating it if the receipt uses a rate we don't have yet
+        function tierIdForRate(rate) {
+            if (!rate) return (state.taxTiers.find(t => !t.rate) || state.taxTiers[0]).id;
+            let tier = state.taxTiers.find(t => t.rate === rate);
+            if (!tier) {
+                tier = { id: 't_' + Date.now() + '_' + rate, name: `SST ${rate}%`, rate };
+                state.taxTiers.push(tier);
+            }
+            return tier.id;
+        }
+
         async function handleOcrFileUpload(event) {
             const file = event.target.files[0];
             event.target.value = ''; // allow re-selecting the same photo
             if (!file) return;
 
-            elements.ocrStatusBox?.classList.remove('hidden');
-            if (elements.ocrStatusText) elements.ocrStatusText.textContent = "Analyzing receipt image...";
-            elements.ocrResultsContainer?.classList.add('hidden');
-            if (elements.importOcrItemsBtn) elements.importOcrItemsBtn.disabled = true;
+            if (!readLocal(GEMINI_KEY_STORAGE)) {
+                renderGeminiKeyBox(true);
+                setOcrStatus('Save your Gemini API key above first.', true);
+                return;
+            }
 
-            const reader = new FileReader();
-            reader.onload = async (e) => {
-                const base64Data = e.target.result.split(',')[1];
-                const mimeType = file.type || 'image/jpeg';
+            // Ignore results from an earlier photo if another one was picked meanwhile
+            const scanId = ++scanCounter;
+            scannedReceipt = null;
+            elements.ocrResultsContainer.classList.add('hidden');
+            elements.importOcrItemsBtn.disabled = true;
 
-                try {
-                    await parseReceiptImage(base64Data, mimeType);
-                } catch (err) {
-                    console.error("Receipt OCR parse error:", err);
-                    showToast("Failed to parse receipt photo. Please try another image.", true);
-                    elements.ocrStatusBox?.classList.add('hidden');
-                }
-            };
-            reader.readAsDataURL(file);
-        }
+            try {
+                setOcrStatus('Preparing photo…');
+                const jpeg = await loadImageAsJpeg(file);
+                setOcrStatus('Reading receipt with Gemini… (usually 5–20 seconds)');
+                const receipt = normalizeReceipt(await scanReceiptWithGemini(jpeg));
+                if (scanId !== scanCounter) return;
+                if (receipt.items.length === 0) throw new Error('No items found. Make sure the whole receipt is in the photo and in focus.');
 
-        async function parseReceiptImage(base64Data, mimeType) {
-            if (elements.ocrStatusText) elements.ocrStatusText.textContent = "Extracting line items & tax rates...";
-            
-            setTimeout(() => {
-                state.merchant = 'Yip Kee Bak Kut Teh';
-                state.date = '2026-10-23';
-                if (elements.receiptMerchant) elements.receiptMerchant.value = state.merchant;
-                if (elements.receiptDate) elements.receiptDate.value = state.date;
-
-                detectedOcrItems = [
-                    { name: 'DRY (66.00/ea)', price: 66.00 },
-                    { name: 'SOUP (42.00/ea)', price: 42.00 },
-                    { name: '金针菇 Enoki (6.00/ea)', price: 6.00 },
-                    { name: '蘑菇 Mushroom (7.00/ea)', price: 7.00 },
-                    { name: '肉丸 Ball (8.00/ea)', price: 8.00 },
-                    { name: '炸油条 Yur Zha Keow (3.00/ea)', price: 3.00 },
-                    { name: '油葵 Lettuce (B) (15.00/ea)', price: 15.00 },
-                    { name: '油饭 大 Oil Rice (B) x 6', price: 15.00 },
-                    { name: '白饭 大 Rice (B) x 2', price: 5.00 },
-                    { name: '泡茶 Chrysanthemum + Tea', price: 10.00 },
-                    { name: '冰块 Ice (1.00/ea)', price: 1.00 },
-                    { name: 'SOUP (21.00/ea)', price: 21.00 },
-                    { name: 'DRY (22.00/ea)', price: 22.00 },
-                    { name: '豆 Tofu (8.00/ea)', price: 8.00 }
-                ];
-
-                // Yip Kee: 6% service charge, no SST, printed total RM 242.75
-                state.serviceChargeEnabled = true;
-                state.serviceChargeRate = 6;
-                state.sstEnabled = false;
-                state.receiptTotal = 242.75;
-                renderChargesPanel();
-                if (elements.receiptTotal) elements.receiptTotal.value = 242.75;
-                if (elements.ocrDetectedSvc) {
-                    elements.ocrDetectedSvc.textContent = "Detected: Service Charge 6%";
-                }
-
+                scannedReceipt = receipt;
+                elements.ocrStatusBox.classList.add('hidden');
                 renderOcrResults();
-                elements.ocrStatusBox?.classList.add('hidden');
-                elements.ocrResultsContainer?.classList.remove('hidden');
-                if (elements.importOcrItemsBtn) elements.importOcrItemsBtn.disabled = false;
-                showToast("Receipt parsed successfully!");
-            }, 800);
+                elements.ocrResultsContainer.classList.remove('hidden');
+                elements.importOcrItemsBtn.disabled = false;
+            } catch (err) {
+                if (scanId !== scanCounter) return;
+                console.error('Receipt scan failed:', err);
+                setOcrStatus(err.message || 'Could not read this receipt.', true);
+            }
         }
 
         function renderOcrResults() {
-            if (!elements.ocrItemsList) return;
-            elements.ocrItemsList.innerHTML = '';
+            const r = scannedReceipt;
+            if (!r || !elements.ocrItemsList) return;
 
-            detectedOcrItems.forEach((item, index) => {
-                const div = document.createElement('div');
-                div.className = 'flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-700/50 rounded-lg text-xs';
-                div.innerHTML = `
+            const chips = [];
+            if (r.merchant || r.date) chips.push([r.merchant, r.date].filter(Boolean).join(' · '));
+            chips.push(r.serviceChargeRate > 0 ? `Svc charge ${r.serviceChargeRate}%` : 'No svc charge');
+            chips.push(r.sstLines.length ? `SST ${r.sstLines.map(l => l.rate + '%').join(' + ')}` : 'No SST');
+            if (r.discount > 0) chips.push(`Discount ${formatRM(r.discount)}`);
+            if (r.total > 0) chips.push(`Total ${formatRM(r.total)}`);
+            elements.ocrSummary.innerHTML = chips.map(c =>
+                `<span class="px-2 py-0.5 rounded-full bg-teal-50 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300 text-[11px] font-medium">${escapeHtml(c)}</span>`
+            ).join('');
+
+            const showRates = r.sstLines.length > 1;
+            elements.ocrItemsList.innerHTML = r.items.map((item, index) => `
+                <div class="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-700/50 rounded-lg text-xs">
                     <label class="flex items-center gap-2 cursor-pointer flex-1 min-w-0 pr-2">
                         <input type="checkbox" value="${index}" checked class="ocr-item-cb rounded text-teal-600 focus:ring-teal-500">
-                        <span class="truncate font-medium text-slate-700 dark:text-slate-200">${item.name}</span>
+                        <span class="truncate font-medium text-slate-700 dark:text-slate-200">${escapeHtml(item.name)}</span>
+                        ${showRates ? `<span class="shrink-0 px-1.5 rounded bg-slate-200 dark:bg-slate-600 text-[10px] text-slate-600 dark:text-slate-300">SST ${item.sstRate}%</span>` : ''}
                     </label>
-                    <span class="font-semibold text-slate-800 dark:text-slate-100">RM ${item.price.toFixed(2)}</span>
-                `;
-                elements.ocrItemsList.appendChild(div);
-            });
+                    <span class="font-semibold text-slate-800 dark:text-slate-100">${formatRM(item.price)}</span>
+                </div>
+            `).join('');
+
+            // Replace-or-add only matters when the bill already has items
+            elements.ocrReplaceRow.classList.toggle('hidden', state.items.length === 0);
+            elements.ocrReplaceCount.textContent = state.items.length;
+            elements.ocrReplaceItems.checked = true;
         }
 
         // --- RENDER FUNCTIONS ---
@@ -1598,7 +1864,7 @@
                 const tr = document.createElement('tr');
                 tr.id = `item-row-${item.id}`;
                 tr.innerHTML = `
-                    <td class="py-2.5 px-3 font-semibold text-slate-800 dark:text-slate-100">${item.name}</td>
+                    <td class="py-2.5 px-3 font-semibold text-slate-800 dark:text-slate-100">${escapeHtml(item.name)}</td>
                     <td class="py-2 px-3 min-w-[160px] max-w-[220px]">${memberPickerHtml(`picker-${item.id}`, item.assignedMemberIds, item.id)}</td>
                     <td class="py-2.5 px-3">
                         ${!state.sstEnabled ? `<span class="text-slate-300 dark:text-slate-600">—</span>` : `<select onchange="updateItemTier('${item.id}', this.value)" title="SST tier" class="px-1.5 py-1 text-[11px] font-medium bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border border-transparent rounded outline-none focus:ring-2 focus:ring-emerald-500">
