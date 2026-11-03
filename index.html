@@ -57,7 +57,7 @@
             </div>
 
             <div class="flex items-center space-x-2 sm:space-x-3">
-                <button id="clear-storage-btn" class="px-3 py-1.5 text-xs font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg border border-rose-200 dark:border-rose-900 transition-colors flex items-center gap-1.5" title="Clear dishes & drinks only">
+                <button id="clear-storage-btn" class="px-3 py-1.5 text-xs font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg border border-rose-200 dark:border-rose-900 transition-colors flex items-center gap-1.5" title="Clear dishes, shop, date & front payer (people are kept)">
                     <i class="fa-solid fa-trash-can"></i> <span class="hidden sm:inline">Clear Items</span>
                 </button>
 
@@ -604,6 +604,7 @@
 
         let elements = {};
         let detectedOcrItems = [];
+        let lastPrimaryBreakdowns = {};
 
         window.addEventListener('DOMContentLoaded', () => {
             elements = {
@@ -617,6 +618,7 @@
                 reconcileDifference: document.getElementById('reconcile-difference'),
                 matchingStatusBadge: document.getElementById('matching-status-badge'),
                 ocrDetectedSvc: document.getElementById('ocr-detected-svc'),
+                editItemModal: document.getElementById('edit-item-modal'),
                 closeEditItemBtn: document.getElementById('close-edit-item-btn'),
                 cancelEditItemBtn: document.getElementById('cancel-edit-item-btn'),
                 editItemForm: document.getElementById('edit-item-form'),
@@ -626,6 +628,7 @@
                 editItemTaxTier: document.getElementById('edit-item-tax-tier'),
                 editItemMembersDropdown: document.getElementById('edit-item-members-dropdown'),
 
+                addMemberForm: document.getElementById('add-member-form'),
                 newMemberName: document.getElementById('new-member-name'),
                 newMemberRole: document.getElementById('new-member-role'),
                 newMemberParent: document.getElementById('new-member-parent'),
@@ -722,8 +725,14 @@
                 const newRole = elements.editMemberRole.value;
                 const newParentId = newRole === 'dependent' ? elements.editMemberParent.value : null;
 
+                if (newRole === 'dependent' && !newParentId) {
+                    showToast('Pick a Primary Payer to cover this dependent', true);
+                    return;
+                }
+
                 const member = state.members.find(m => m.id === id);
                 if (member && newName) {
+                    if (member.role === 'primary' && newRole !== 'primary') detachPrimary(member.id);
                     member.name = newName;
                     member.role = newRole;
                     member.parentId = newParentId;
@@ -814,7 +823,8 @@
                 let count = 0;
                 const defaultPrimary = state.members.find(m => m.role === 'primary') || state.members[0];
                 const defaultMemberId = defaultPrimary ? defaultPrimary.id : null;
-                const defaultTaxTier = state.taxTiers[0] ? state.taxTiers[0].id : null;
+                // Use the tier currently picked in the Add Item form (tier 0 is usually "Tax Free")
+                const defaultTaxTier = elements.itemTaxTier?.value || (state.taxTiers[0] ? state.taxTiers[0].id : null);
 
                 selectedCheckboxes.forEach(cb => {
                     const idx = parseInt(cb.value);
@@ -840,9 +850,10 @@
 
             elements.newMemberRole?.addEventListener('change', (e) => {
                 if (e.target.value === 'dependent') {
-                    elements.newMemberParent.classList.remove('hidden');
+                    renderNewMemberParentOptions();
+                    elements.newMemberParent?.classList.remove('hidden');
                 } else {
-                    elements.newMemberParent.classList.add('hidden');
+                    elements.newMemberParent?.classList.add('hidden');
                 }
             });
 
@@ -850,11 +861,23 @@
                 e.preventDefault();
                 const name = elements.newMemberName.value.trim();
                 const role = elements.newMemberRole.value;
-                const parentId = role === 'dependent' ? elements.newMemberParent.value : null;
 
-                if (!name) return;
+                if (!name) {
+                    showToast('Please enter a member name', true);
+                    return;
+                }
 
                 const memberRole = role === 'dependent' ? 'dependent' : (role === 'primary' ? 'primary' : 'standalone');
+                let parentId = null;
+
+                if (memberRole === 'dependent') {
+                    parentId = elements.newMemberParent ? elements.newMemberParent.value : null;
+                    if (!parentId) {
+                        showToast('Please create a Primary Payer first to attach dependents!', true);
+                        return;
+                    }
+                }
+
                 const newMember = {
                     id: 'm_' + Date.now(),
                     name,
@@ -864,8 +887,17 @@
 
                 state.members.push(newMember);
 
-                if (memberRole === 'standalone') {
-                    const primaries = state.members.filter(m => m.role === 'primary').map(m => m.id);
+                // If a new Primary Payer was added, update existing standalone guest coverage rules
+                const primaries = state.members.filter(m => m.role === 'primary').map(m => m.id);
+                if (memberRole === 'primary') {
+                    state.members.filter(m => m.role === 'standalone').forEach(guest => {
+                        if (state.coverageRules[guest.id] && state.coverageRules[guest.id].coveredByPrimaryIds) {
+                            if (!state.coverageRules[guest.id].coveredByPrimaryIds.includes(newMember.id)) {
+                                state.coverageRules[guest.id].coveredByPrimaryIds.push(newMember.id);
+                            }
+                        }
+                    });
+                } else if (memberRole === 'standalone') {
                     state.coverageRules[newMember.id] = {
                         mode: 'split_even',
                         coveredByPrimaryIds: primaries.length ? [...primaries] : []
@@ -930,13 +962,17 @@
                     showToast('Please enter a valid item name and price', true);
                     return;
                 }
+                if (!assignedMemberId) {
+                    showToast('Please select a member for this item', true);
+                    return;
+                }
 
                 state.items.push({
                     id: 'i_' + Date.now(),
                     name,
                     price,
                     taxTierId,
-                    assignedMemberIds: assignedMemberId ? [assignedMemberId] : []
+                    assignedMemberIds: [assignedMemberId]
                 });
 
                 elements.itemName.value = '';
@@ -956,9 +992,14 @@
             });
             elements.closeWhatsappModalBtn?.addEventListener('click', () => elements.whatsappModal?.classList.add('hidden'));
             elements.copySummaryBtn?.addEventListener('click', () => {
-                elements.whatsappTextArea.select();
-                document.execCommand('copy');
-                showToast('Summary copied to clipboard!');
+                const text = elements.whatsappTextArea.value;
+                const fallbackCopy = () => {
+                    elements.whatsappTextArea.select();
+                    document.execCommand('copy');
+                };
+                (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject())
+                    .catch(fallbackCopy)
+                    .finally(() => showToast('Summary copied to clipboard!'));
             });
 
             elements.darkModeToggle?.addEventListener('click', () => {
@@ -966,12 +1007,14 @@
             });
         }
 
+        // --- HELPER DIALOG FUNCTIONS ---
         function getFamilyColor(idx) {
             return FAMILY_COLORS[idx % FAMILY_COLORS.length];
         }
 
         async function handleOcrFileUpload(event) {
             const file = event.target.files[0];
+            event.target.value = ''; // allow re-selecting the same photo
             if (!file) return;
 
             elements.ocrStatusBox?.classList.remove('hidden');
@@ -988,7 +1031,7 @@
                     await parseReceiptImage(base64Data, mimeType);
                 } catch (err) {
                     console.error("Receipt OCR parse error:", err);
-                    showToast("Failed to parse receipt photo.", true);
+                    showToast("Failed to parse receipt photo. Please try another image.", true);
                     elements.ocrStatusBox?.classList.add('hidden');
                 }
             };
@@ -996,7 +1039,7 @@
         }
 
         async function parseReceiptImage(base64Data, mimeType) {
-            if (elements.ocrStatusText) elements.ocrStatusText.textContent = "Extracting line items & merchant info...";
+            if (elements.ocrStatusText) elements.ocrStatusText.textContent = "Extracting line items & tax rates...";
             
             setTimeout(() => {
                 state.merchant = 'Yip Kee Bak Kut Teh';
@@ -1053,29 +1096,37 @@
             });
         }
 
+        // --- RENDER FUNCTIONS ---
         function renderAll() {
-            if (elements.receiptMerchant) elements.receiptMerchant.value = state.merchant || '';
-            if (elements.receiptDate) elements.receiptDate.value = state.date || '';
-
-            renderPaidByOptions();
             renderMembersList();
             renderTaxDropdowns();
             renderItemMemberDropdownOptions();
             renderItemsTable();
             renderCoverageRules();
+            renderPayerSelectOptions();
             calculateAndRenderBreakdown();
             saveState();
         }
 
-        function renderPaidByOptions() {
-            if (!elements.paidByMember) return;
+        function renderNewMemberParentOptions() {
+            if (!elements.newMemberParent) return;
+            elements.newMemberParent.innerHTML = '';
             const primaries = state.members.filter(m => m.role === 'primary');
-            let optionsHtml = `<option value="" ${!state.paidByMemberId ? 'selected' : ''} disabled>-- Select Front Payer (Required) --</option>`;
-            optionsHtml += primaries.map(p => `
-                <option value="${p.id}" ${state.paidByMemberId === p.id ? 'selected' : ''}>${p.name} paid front bill</option>
-            `).join('');
-            
-            elements.paidByMember.innerHTML = optionsHtml;
+            if (primaries.length === 0) {
+                const opt = document.createElement('option');
+                opt.value = '';
+                opt.textContent = 'No Primary Payer available';
+                opt.disabled = true;
+                opt.selected = true;
+                elements.newMemberParent.appendChild(opt);
+                return;
+            }
+            primaries.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.id;
+                opt.textContent = `Covered by ${p.name}`;
+                elements.newMemberParent.appendChild(opt);
+            });
         }
 
         function renderMembersList() {
@@ -1132,24 +1183,41 @@
             renderNewMemberParentOptions();
         }
 
-        function renderNewMemberParentOptions() {
-            if (!elements.newMemberParent) return;
-            elements.newMemberParent.innerHTML = '';
+        function renderItemMemberDropdownOptions() {
+            if (!elements.itemMembersDropdown) return;
+            elements.itemMembersDropdown.innerHTML = '';
+
+            state.members.forEach(m => {
+                const opt = document.createElement('option');
+                opt.value = m.id;
+                let roleLabel = m.role === 'primary' ? 'Primary' : (m.role === 'dependent' ? 'Dependent' : 'Guest');
+                opt.textContent = `${m.name} (${roleLabel})`;
+                elements.itemMembersDropdown.appendChild(opt);
+            });
+        }
+
+        function renderPayerSelectOptions() {
+            if (!elements.paidByMember) return;
+            elements.paidByMember.innerHTML = '';
+
+            const placeholder = document.createElement('option');
+            placeholder.value = '';
+            placeholder.textContent = '-- Select Front Payer (Required) --';
+            placeholder.disabled = true;
+            if (!state.paidByMemberId) placeholder.selected = true;
+            elements.paidByMember.appendChild(placeholder);
+
             const primaries = state.members.filter(m => m.role === 'primary');
             primaries.forEach(p => {
                 const opt = document.createElement('option');
                 opt.value = p.id;
-                opt.textContent = `Covered by ${p.name}`;
-                elements.newMemberParent.appendChild(opt);
+                opt.textContent = `Front Paid by ${p.name}`;
+                if (state.paidByMemberId === p.id) opt.selected = true;
+                elements.paidByMember.appendChild(opt);
             });
-        }
 
-        function renderItemMemberDropdownOptions() {
-            if (!elements.itemMembersDropdown) return;
-            elements.itemMembersDropdown.innerHTML = state.members.map(m => {
-                let suffix = m.role === 'primary' ? ' (Primary)' : (m.role === 'dependent' ? ' (Dependent)' : ' (Guest)');
-                return `<option value="${m.id}">${m.name}${suffix}</option>`;
-            }).join('');
+            if (elements.receiptMerchant) elements.receiptMerchant.value = state.merchant || '';
+            if (elements.receiptDate) elements.receiptDate.value = state.date || '';
         }
 
         function renderTaxDropdowns() {
@@ -1239,11 +1307,15 @@
             renderTaxDropdowns();
             elements.editItemTaxTier.value = item.taxTierId;
 
-            elements.editItemMembersDropdown.innerHTML = state.members.map(m => {
-                let suffix = m.role === 'primary' ? ' (Primary)' : (m.role === 'dependent' ? ' (Dependent)' : ' (Guest)');
-                const isSelected = item.assignedMemberIds.includes(m.id);
-                return `<option value="${m.id}" ${isSelected ? 'selected' : ''}>${m.name}${suffix}</option>`;
-            }).join('');
+            elements.editItemMembersDropdown.innerHTML = '';
+            state.members.forEach(m => {
+                const opt = document.createElement('option');
+                opt.value = m.id;
+                let roleLabel = m.role === 'primary' ? 'Primary' : (m.role === 'dependent' ? 'Dependent' : 'Guest');
+                opt.textContent = `${m.name} (${roleLabel})`;
+                if (item.assignedMemberIds.includes(m.id)) opt.selected = true;
+                elements.editItemMembersDropdown.appendChild(opt);
+            });
 
             elements.editItemModal.classList.remove('hidden');
         }
@@ -1267,8 +1339,7 @@
             }
 
             standalones.forEach(guest => {
-                // Ensure default coverage rule splits evenly among ALL primary payers
-                if (!state.coverageRules[guest.id] || !state.coverageRules[guest.id].coveredByPrimaryIds) {
+                if (!state.coverageRules[guest.id]) {
                     state.coverageRules[guest.id] = { mode: 'split_even', coveredByPrimaryIds: primaries.map(p => p.id) };
                 }
 
@@ -1277,7 +1348,7 @@
                 div.className = 'p-3 bg-slate-50 dark:bg-slate-700/40 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2';
 
                 let primaryChecksHtml = primaries.map(p => {
-                    const isChecked = rule.coveredByPrimaryIds ? rule.coveredByPrimaryIds.includes(p.id) : true;
+                    const isChecked = rule.coveredByPrimaryIds ? rule.coveredByPrimaryIds.includes(p.id) : false;
                     return `
                         <label class="inline-flex items-center gap-1 text-xs text-slate-700 dark:text-slate-200 mr-2">
                             <input type="checkbox" value="${p.id}" ${isChecked ? 'checked' : ''} onchange="updateCoveragePrimaries('${guest.id}')" class="guest-primary-cb-${guest.id} rounded text-emerald-600 focus:ring-emerald-500">
@@ -1332,12 +1403,14 @@
 
             renderCoverageRules();
             calculateAndRenderBreakdown();
+            saveState();
         }
 
         function updateSinglePrimary(guestId, primaryId) {
             if (!state.coverageRules[guestId]) state.coverageRules[guestId] = {};
             state.coverageRules[guestId].singlePrimaryId = primaryId;
             calculateAndRenderBreakdown();
+            saveState();
         }
 
         function updateCoveragePrimaries(guestId) {
@@ -1346,8 +1419,10 @@
             if (!state.coverageRules[guestId]) state.coverageRules[guestId] = {};
             state.coverageRules[guestId].coveredByPrimaryIds = selectedIds;
             calculateAndRenderBreakdown();
+            saveState();
         }
 
+        // --- CALCULATIONS & BREAKDOWN ---
         function calculateAndRenderBreakdown() {
             let totalSubtotal = 0;
             let totalSst = 0;
@@ -1400,7 +1475,7 @@
                     dependentsSubtotal: 0,
                     dependentsTax: 0,
                     coveredGuestsShare: 0,
-                    totalBeforeSvc: 0,
+                    coveredGuestsSubtotal: 0,
                     svcShare: 0,
                     finalTotal: 0
                 };
@@ -1431,46 +1506,39 @@
 
                 if (rule.mode === 'single' && rule.singlePrimaryId && primaryBreakdowns[rule.singlePrimaryId]) {
                     primaryBreakdowns[rule.singlePrimaryId].coveredGuestsShare += guestTotalBeforeSvc;
+                    primaryBreakdowns[rule.singlePrimaryId].coveredGuestsSubtotal += guestSub;
                 } else if (rule.mode === 'split_even' && rule.coveredByPrimaryIds && rule.coveredByPrimaryIds.length > 0) {
                     const validPrimaryIds = rule.coveredByPrimaryIds.filter(id => primaryBreakdowns[id]);
                     if (validPrimaryIds.length > 0) {
                         const share = guestTotalBeforeSvc / validPrimaryIds.length;
+                        const subShare = guestSub / validPrimaryIds.length;
                         validPrimaryIds.forEach(pId => {
                             primaryBreakdowns[pId].coveredGuestsShare += share;
+                            primaryBreakdowns[pId].coveredGuestsSubtotal += subShare;
                         });
                     }
                 }
             });
 
             let calculatedSumOfPayers = 0;
-            const payerPayerMember = state.members.find(m => m.id === state.paidByMemberId);
-            const payerName = payerPayerMember ? payerPayerMember.name : null;
+            const frontPayer = state.members.find(m => m.id === state.paidByMemberId);
 
             elements.breakdownCardsList.innerHTML = '';
-
-            if (!state.paidByMemberId) {
-                elements.breakdownCardsList.innerHTML = `
-                    <div class="p-4 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-xs text-amber-700 dark:text-amber-300 font-medium text-center flex items-center justify-center gap-2">
-                        <i class="fa-solid fa-triangle-exclamation text-base"></i> Select who paid the front bill upfront to generate settlements.
-                    </div>
-                `;
-            }
-
             primaries.forEach((p, idx) => {
                 const b = primaryBreakdowns[p.id];
                 const subPlusTax = b.ownSubtotal + b.ownTax + b.dependentsSubtotal + b.dependentsTax + b.coveredGuestsShare;
 
-                b.svcShare = totalSubtotal > 0 ? (subPlusTax / (totalSubtotal + totalSst)) * totalSvc : 0;
+                // Service charge is levied on the pre-tax subtotal, so share it out by subtotal
+                const attributedSubtotal = b.ownSubtotal + b.dependentsSubtotal + b.coveredGuestsSubtotal;
+                b.svcShare = totalSubtotal > 0 ? (attributedSubtotal / totalSubtotal) * totalSvc : 0;
                 b.finalTotal = subPlusTax + b.svcShare;
 
                 calculatedSumOfPayers += b.finalTotal;
 
-                if (!state.paidByMemberId) return;
-
                 const color = getFamilyColor(idx);
                 const isFrontPayer = p.id === state.paidByMemberId;
                 const card = document.createElement('div');
-                card.className = `p-4 rounded-2xl bg-white dark:bg-slate-800 border ${isFrontPayer ? 'border-emerald-500 shadow-md ring-2 ring-emerald-500/20' : 'border-slate-200 dark:border-slate-700'} shadow-sm space-y-2.5`;
+                card.className = `p-4 rounded-2xl bg-white dark:bg-slate-800 border ${isFrontPayer ? 'border-emerald-500 ring-2 ring-emerald-500/20' : 'border-slate-200 dark:border-slate-700'} shadow-sm space-y-2.5`;
 
                 let depsHtml = b.dependents.map(d => `
                     <div class="flex justify-between text-xs text-slate-500 dark:text-slate-400 pl-2 border-l-2 border-slate-200 dark:border-slate-700">
@@ -1488,14 +1556,14 @@
                             <div>
                                 <h4 class="font-bold text-sm text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
                                     ${p.name}
-                                    ${isFrontPayer ? `<span class="px-1.5 py-0.5 text-[10px] bg-emerald-100 text-emerald-700 dark:bg-emerald-950/80 dark:text-emerald-300 rounded font-semibold">Front Payer</span>` : ''}
+                                    ${isFrontPayer ? `<span class="px-2 py-0.5 text-[10px] bg-emerald-100 text-emerald-800 font-semibold rounded-full">Paid Front Total</span>` : ''}
                                 </h4>
-                                <span class="text-[11px] text-slate-400">${isFrontPayer ? 'Paid full bill upfront' : `Pay to ${payerName}`}</span>
+                                <span class="text-[11px] text-slate-400">${isFrontPayer ? 'Collects from others' : (frontPayer ? `Pay to ${frontPayer.name}` : 'Settlement Payer')}</span>
                             </div>
                         </div>
                         <div class="text-right">
-                            <span class="text-xs text-slate-400 uppercase tracking-wider block text-[10px]">${isFrontPayer ? 'Collect Total' : 'Pay Amount'}</span>
-                            <span class="text-base font-extrabold ${isFrontPayer ? 'text-teal-600 dark:text-teal-400' : 'text-emerald-600 dark:text-emerald-400'}">RM ${b.finalTotal.toFixed(2)}</span>
+                            <span class="text-xs text-slate-400 uppercase tracking-wider block text-[10px]">Total Share</span>
+                            <span class="text-base font-extrabold text-emerald-600 dark:text-emerald-400">RM ${b.finalTotal.toFixed(2)}</span>
                         </div>
                     </div>
 
@@ -1519,6 +1587,8 @@
                 `;
                 elements.breakdownCardsList.appendChild(card);
             });
+
+            lastPrimaryBreakdowns = primaryBreakdowns;
 
             elements.reconcilePayersSum.textContent = `RM ${calculatedSumOfPayers.toFixed(2)}`;
             elements.reconcileGrandTotal.textContent = `RM ${grandTotal.toFixed(2)}`;
@@ -1572,11 +1642,43 @@
             elements.editMemberModal.classList.remove('hidden');
         }
 
-        function removeMember(memberId) {
-            state.members = state.members.filter(m => m.id !== memberId);
-            state.items.forEach(i => {
-                i.assignedMemberIds = i.assignedMemberIds.filter(id => id !== memberId);
+        // A member stopping being a primary payer: turn their dependents into guests
+        // (so their items are still billed) and drop them from coverage rules / front payer.
+        function detachPrimary(primaryId) {
+            const primaries = state.members.filter(m => m.role === 'primary' && m.id !== primaryId).map(m => m.id);
+
+            Object.values(state.coverageRules).forEach(rule => {
+                if (rule.coveredByPrimaryIds) {
+                    rule.coveredByPrimaryIds = rule.coveredByPrimaryIds.filter(id => id !== primaryId);
+                }
+                if (rule.singlePrimaryId === primaryId) {
+                    rule.singlePrimaryId = primaries[0] || null;
+                }
             });
+
+            state.members.filter(m => m.role === 'dependent' && m.parentId === primaryId).forEach(dep => {
+                dep.role = 'standalone';
+                dep.parentId = null;
+                state.coverageRules[dep.id] = { mode: 'split_even', coveredByPrimaryIds: [...primaries] };
+            });
+
+            if (state.paidByMemberId === primaryId) state.paidByMemberId = '';
+        }
+
+        function removeMember(memberId) {
+            const member = state.members.find(m => m.id === memberId);
+            if (!member) return;
+
+            const itemCount = state.items.filter(i => i.assignedMemberIds.includes(memberId)).length;
+            if (itemCount > 0 && !confirm(`${member.name} has ${itemCount} item(s) assigned. Remove ${member.name} and delete those items?`)) {
+                return;
+            }
+
+            if (member.role === 'primary') detachPrimary(memberId);
+            delete state.coverageRules[memberId];
+
+            state.members = state.members.filter(m => m.id !== memberId);
+            state.items = state.items.filter(i => !i.assignedMemberIds.includes(memberId));
 
             elements.editMemberModal?.classList.add('hidden');
             showToast('Member removed');
@@ -1584,42 +1686,35 @@
         }
 
         function generateWhatsAppText() {
-            const payerMember = state.members.find(m => m.id === state.paidByMemberId);
-            const payerName = payerMember ? payerMember.name : 'Front Payer';
-
+            const frontPayer = state.members.find(m => m.id === state.paidByMemberId);
             let text = `🧾 *BILL SPLIT SUMMARY*\n`;
             if (state.merchant) text += `📍 Store: *${state.merchant}*\n`;
             if (state.date) text += `📅 Date: ${state.date}\n`;
-            text += `💳 Front Paid By: *${payerName}*\n`;
             text += `------------------------------\n`;
 
             state.items.forEach(i => {
                 text += `• ${i.name}: RM ${i.price.toFixed(2)}\n`;
             });
 
-            text += `\n*Service Charge (${state.serviceChargeRate}%):* Included\n`;
+            text += `\n*Svc Charge (${state.serviceChargeRate}%):* Included\n`;
             text += `------------------------------\n`;
-            text += `*PAYMENT SETTLEMENT:*\n\n`;
+            text += `💳 *FRONT PAID BY:* ${frontPayer ? frontPayer.name : 'Unknown'}\n\n`;
+            text += `*SETTLEMENT PAYMENTS:*\n`;
 
             const primaries = state.members.filter(m => m.role === 'primary');
+            calculateAndRenderBreakdown();
             primaries.forEach(p => {
-                const cards = document.querySelectorAll('#breakdown-cards-list > div');
-                let amountText = '0.00';
-                cards.forEach(c => {
-                    if (c.innerHTML.includes(p.name)) {
-                        const totalEl = c.querySelector('.text-emerald-600, .text-emerald-400, .text-teal-600, .text-teal-400');
-                        if (totalEl) amountText = totalEl.textContent;
-                    }
-                });
+                const b = lastPrimaryBreakdowns[p.id];
+                const amountText = `RM ${(b ? b.finalTotal : 0).toFixed(2)}`;
 
                 if (p.id === state.paidByMemberId) {
-                    text += `👑 *${p.name} (Paid Front):* ${amountText}\n`;
+                    text += `• *${p.name}:* ${amountText} (Paid Front)\n`;
                 } else {
-                    text += `👉 *${p.name}:* ${amountText} (Pay to ${payerName})\n`;
+                    text += `• *${p.name}:* Pay *${amountText}* to ${frontPayer ? frontPayer.name : 'Front Payer'}\n`;
                 }
             });
 
-            text += `\nThank you! Please transfer to ${payerName} accordingly. 🙏`;
+            text += `\nThank you! Please transfer accordingly. 🙏`;
             return text;
         }
 
