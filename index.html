@@ -13,6 +13,8 @@
     <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Removed Tesseract.js in favor of Gemini Vision AI -->
+    <!-- html2canvas: turns the page into an image for the Screenshot button -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" defer></script>
     <script>
         tailwind.config = {
             darkMode: 'class',
@@ -57,8 +59,8 @@
             </div>
 
             <div class="flex items-center space-x-2 sm:space-x-3">
-                <button id="clear-storage-btn" class="px-3 py-1.5 text-xs font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg border border-rose-200 dark:border-rose-900 transition-colors flex items-center gap-1.5" title="Clear dishes, shop, date & front payer (people are kept)">
-                    <i class="fa-solid fa-trash-can"></i> <span class="hidden sm:inline">Clear Items</span>
+                <button id="clear-storage-btn" class="px-3 py-1.5 text-xs font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg border border-rose-200 dark:border-rose-900 transition-colors flex items-center gap-1.5" title="Clear this receipt's items, shop, date, payer & charges (people and other receipts are kept)">
+                    <i class="fa-solid fa-trash-can"></i> <span class="hidden sm:inline">Clear Receipt</span>
                 </button>
 
                 <button id="dark-mode-toggle" class="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-700 transition-colors">
@@ -70,6 +72,17 @@
     </header>
 
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+        <!-- RECEIPT TABS: people are shared, everything else is per receipt -->
+        <div class="mb-6 flex items-center gap-2 overflow-x-auto custom-scrollbar pb-1">
+            <span class="shrink-0 text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 mr-1">
+                <i class="fa-solid fa-receipt"></i> Receipts
+            </span>
+            <div id="receipt-tabs" class="flex gap-2"></div>
+            <button type="button" onclick="addReceipt()" class="shrink-0 px-3 py-2.5 text-xs font-medium text-emerald-700 dark:text-emerald-400 border border-dashed border-emerald-300 dark:border-emerald-800 rounded-xl hover:bg-emerald-50 dark:hover:bg-emerald-950/40 flex items-center gap-1.5">
+                <i class="fa-solid fa-plus"></i> Add receipt
+            </button>
+        </div>
+
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
             <!-- LEFT COLUMN: INPUT CONTROLS -->
@@ -282,12 +295,15 @@
                                 <span class="text-xs font-semibold text-emerald-100 uppercase tracking-wider">Net Total</span>
                                 <div id="grand-total-amount" class="text-3xl font-extrabold tracking-tight mt-1">RM 0.00</div>
                             </div>
-                            <div class="flex gap-2">
+                            <div class="flex flex-wrap justify-end gap-2">
                                 <button id="recalculate-btn" class="px-3 py-1.5 bg-white/20 hover:bg-white/30 backdrop-blur-md rounded-xl text-xs font-medium text-white flex items-center gap-1.5 transition-colors shadow-sm" title="Recalculate Bill">
                                     <i class="fa-solid fa-calculator text-sm"></i> Update Calculation
                                 </button>
                                 <button id="export-whatsapp-btn" class="px-3 py-1.5 bg-white/20 hover:bg-white/30 backdrop-blur-md rounded-xl text-xs font-medium text-white flex items-center gap-1.5 transition-colors">
                                     <i class="fa-brands fa-whatsapp text-sm"></i> WhatsApp Text
+                                </button>
+                                <button id="export-screenshot-btn" class="px-3 py-1.5 bg-white/20 hover:bg-white/30 backdrop-blur-md rounded-xl text-xs font-medium text-white flex items-center gap-1.5 transition-colors">
+                                    <i class="fa-solid fa-image text-sm"></i> Share Image
                                 </button>
                             </div>
                         </div>
@@ -337,10 +353,21 @@
                     </div>
                 </div>
 
+                <!-- SETTLE UP ACROSS ALL RECEIPTS (only shown with 2+ receipts) -->
+                <div id="settle-card" class="hidden bg-white dark:bg-slate-800 rounded-2xl p-5 shadow-sm border-2 border-emerald-500 space-y-3">
+                    <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 pb-2.5">
+                        <h3 class="text-sm font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                            <i class="fa-solid fa-right-left text-emerald-500"></i> Settle Up · All Receipts
+                        </h3>
+                        <span id="settle-subtitle" class="text-xs font-medium text-slate-400"></span>
+                    </div>
+                    <div id="settle-body" class="space-y-3"></div>
+                </div>
+
                 <!-- PAYER CARDS BREAKDOWN -->
                 <div class="space-y-4">
                     <h3 class="text-base font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-2">
-                        <i class="fa-solid fa-calculator text-emerald-500"></i> Primary Payers Breakdown
+                        <i class="fa-solid fa-calculator text-emerald-500"></i> <span id="breakdown-title">Primary Payers Breakdown</span>
                     </h3>
 
                     <div id="breakdown-cards-list" class="space-y-3">
@@ -465,6 +492,36 @@
             <div class="flex justify-end gap-2 border-t border-slate-200 dark:border-slate-700 pt-3">
                 <button type="button" id="copy-summary-btn" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-medium flex items-center gap-1.5">
                     <i class="fa-regular fa-copy"></i> Copy to Clipboard
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SCREENSHOT EXPORT MODAL -->
+    <div id="screenshot-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-lg w-full max-h-[90vh] flex flex-col p-6 shadow-2xl border border-slate-200 dark:border-slate-700 space-y-4">
+            <div class="flex justify-between items-center border-b border-slate-200 dark:border-slate-700 pb-3">
+                <h3 class="text-base font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                    <i class="fa-solid fa-image text-emerald-500"></i> Bill Image
+                </h3>
+                <button id="close-screenshot-modal-btn" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                    <i class="fa-solid fa-xmark text-base"></i>
+                </button>
+            </div>
+
+            <div class="flex-1 min-h-0 overflow-y-auto custom-scrollbar rounded-xl border border-slate-200 dark:border-slate-700">
+                <img id="screenshot-preview" alt="Bill screenshot" class="w-full">
+            </div>
+
+            <div class="flex flex-wrap justify-end gap-2 border-t border-slate-200 dark:border-slate-700 pt-3">
+                <button type="button" id="download-screenshot-btn" class="px-4 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-medium flex items-center gap-1.5">
+                    <i class="fa-solid fa-download"></i> Save Image
+                </button>
+                <button type="button" id="copy-screenshot-btn" class="px-4 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-medium flex items-center gap-1.5">
+                    <i class="fa-regular fa-copy"></i> Copy Image
+                </button>
+                <button type="button" id="share-screenshot-btn" class="hidden px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-medium flex items-center gap-1.5">
+                    <i class="fa-brands fa-whatsapp"></i> Share
                 </button>
             </div>
         </div>
@@ -662,7 +719,47 @@
             } catch (e) {
                 console.error("Failed to load local storage state", e);
             }
-            return JSON.parse(JSON.stringify(DEFAULT_STATE));
+            return migrateState(JSON.parse(JSON.stringify(DEFAULT_STATE)));
+        }
+
+        // Fields that belong to one receipt. The open receipt's values live directly on `state`
+        // (so the editing code just uses state.items, state.merchant…); every receipt, including
+        // the open one, is kept in state.receipts and synced from `state` before saving or settling.
+        const RECEIPT_FIELDS = ['merchant', 'date', 'paidByMemberId', 'items', 'discount', 'receiptTotal',
+            'serviceChargeEnabled', 'serviceChargeRate', 'sstEnabled', 'sstOnServiceCharge', 'roundTo5Sen'];
+
+        function blankReceipt() {
+            return {
+                id: 'r_' + Date.now(),
+                merchant: '', date: '', paidByMemberId: '', items: [], discount: 0, receiptTotal: null,
+                serviceChargeEnabled: false, serviceChargeRate: state.serviceChargeRate || 10,
+                sstEnabled: false, sstOnServiceCharge: !!state.sstOnServiceCharge, roundTo5Sen: true
+            };
+        }
+
+        function syncActiveReceipt() {
+            const r = state.receipts.find(r => r.id === state.activeReceiptId);
+            if (r) RECEIPT_FIELDS.forEach(f => r[f] = state[f]);
+        }
+
+        function loadReceipt(r) {
+            RECEIPT_FIELDS.forEach(f => state[f] = r[f]);
+            state.activeReceiptId = r.id;
+        }
+
+        function allReceipts() {
+            syncActiveReceipt();
+            return state.receipts;
+        }
+
+        // A receipt plus the shared members / tax tiers / coverage rules, ready for computeBill
+        function billStateFor(r) {
+            return { ...state, ...r };
+        }
+
+        function receiptLabel(r) {
+            const idx = state.receipts.indexOf(r);
+            return r.merchant || `Receipt ${idx + 1}`;
         }
 
         // Fill in settings added since the state was saved, and fix the old made-up tax tiers
@@ -686,10 +783,20 @@
                     t.rate = std.rate;
                 }
             });
+
+            // Saved before multiple receipts: the one bill becomes Receipt 1
+            if (!Array.isArray(s.receipts) || s.receipts.length === 0) {
+                s.receipts = [{ id: 'r1', ...Object.fromEntries(RECEIPT_FIELDS.map(f => [f, s[f]])) }];
+                s.activeReceiptId = 'r1';
+            }
+            const active = s.receipts.find(r => r.id === s.activeReceiptId) || s.receipts[0];
+            s.activeReceiptId = active.id;
+            RECEIPT_FIELDS.forEach(f => s[f] = active[f]);
             return s;
         }
 
         function saveState() {
+            syncActiveReceipt();
             try {
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
             } catch (e) {
@@ -710,7 +817,6 @@
 
         let elements = {};
         let scannedReceipt = null;
-        let lastPrimaryBreakdowns = {};
 
         window.addEventListener('DOMContentLoaded', () => {
             elements = {
@@ -831,6 +937,7 @@
         function initEvents() {
             elements.receiptMerchant?.addEventListener('input', (e) => {
                 state.merchant = e.target.value;
+                renderReceiptTabs();
                 saveState();
             });
 
@@ -903,8 +1010,9 @@
                 }
             });
 
-            // Clear button now resets food & drink items, merchant name, date & front paid member
+            // Clear empties only the open receipt tab: items, shop, date, payer & charges (people and other receipts stay)
             elements.clearStorageBtn?.addEventListener('click', () => {
+                if (state.items.length > 0 && !confirm(`Clear everything on ${receiptLabel(state.receipts.find(r => r.id === state.activeReceiptId))}? Other receipts and people are kept.`)) return;
                 state.items = [];
                 state.merchant = '';
                 state.date = '';
@@ -921,7 +1029,7 @@
 
                 saveState();
                 renderAll();
-                showToast('Cleared dishes, date, shop & front payer (People preserved)');
+                showToast('Cleared this receipt (people and other receipts kept)');
             });
 
             elements.editMemberRole?.addEventListener('change', (e) => {
@@ -969,6 +1077,7 @@
                     item.price = price;
                     item.taxTierId = taxTierId;
                     item.assignedMemberIds = assignedMemberIds;
+                    item.shares = getPickerShares('edit-item-picker');
 
                     showToast(`Updated item ${name}`);
                     elements.editItemModal.classList.add('hidden');
@@ -1197,7 +1306,8 @@
                     name,
                     price,
                     taxTierId,
-                    assignedMemberIds
+                    assignedMemberIds,
+                    shares: getPickerShares('add-item-picker')
                 });
 
                 elements.itemName.value = '';
@@ -1218,29 +1328,34 @@
                     return;
                 }
 
-                const sameEaters = i => i.assignedMemberIds.length === ids.length && ids.every(id => i.assignedMemberIds.includes(id));
+                const sameEaters = i => i.assignedMemberIds.length === ids.length && ids.every(id => i.assignedMemberIds.includes(id))
+                    && Object.keys(i.shares || {}).length === 0;
                 const overwriting = state.items.filter(i => i.assignedMemberIds.length > 0 && !sameEaters(i)).length;
                 if (overwriting > 0 && !confirm(`${overwriting} item(s) already have different eaters. Replace them so all ${state.items.length} items are split between the ticked members?`)) {
                     return;
                 }
 
-                state.items.forEach(i => i.assignedMemberIds = [...ids]);
+                state.items.forEach(i => {
+                    i.assignedMemberIds = [...ids];
+                    i.shares = {};
+                });
                 closeMemberPickers();
                 renderAll();
                 showToast(`All ${state.items.length} items split between ${memberNamesLabel(ids)}`);
             });
 
             elements.exportWhatsappBtn?.addEventListener('click', () => {
-                if (!state.paidByMemberId) {
-                    showToast('Please select who paid the front bill first!', true);
-                    elements.paidByMember?.focus();
-                    return;
-                }
-                if (!checkAllItemsAssigned()) return;
+                if (!checkReceiptsReady()) return;
                 elements.whatsappTextArea.value = generateWhatsAppText();
                 elements.whatsappModal.classList.remove('hidden');
             });
             elements.closeWhatsappModalBtn?.addEventListener('click', () => elements.whatsappModal?.classList.add('hidden'));
+
+            document.getElementById('export-screenshot-btn')?.addEventListener('click', openScreenshotModal);
+            document.getElementById('close-screenshot-modal-btn')?.addEventListener('click', () => document.getElementById('screenshot-modal').classList.add('hidden'));
+            document.getElementById('share-screenshot-btn')?.addEventListener('click', shareScreenshot);
+            document.getElementById('copy-screenshot-btn')?.addEventListener('click', copyScreenshot);
+            document.getElementById('download-screenshot-btn')?.addEventListener('click', downloadScreenshot);
             elements.copySummaryBtn?.addEventListener('click', () => {
                 const text = elements.whatsappTextArea.value;
                 const fallbackCopy = () => {
@@ -1260,10 +1375,8 @@
             document.addEventListener('pointerdown', (e) => {
                 if (!e.target.closest('.member-picker')) closeMemberPickers();
             });
-            window.addEventListener('scroll', (e) => {
-                if (!e.target.closest?.('.picker-panel')) closeMemberPickers();
-            }, true);
-            window.addEventListener('resize', closeMemberPickers);
+            window.addEventListener('scroll', onPickerViewportChange, true);
+            window.addEventListener('resize', onPickerViewportChange);
             document.addEventListener('keydown', (e) => {
                 if (e.key === 'Escape') closeMemberPickers();
             });
@@ -1279,8 +1392,20 @@
             return role === 'primary' ? 'Primary' : (role === 'dependent' ? 'Dependent' : 'Guest');
         }
 
-        function memberNamesLabel(ids) {
-            const names = ids.map(id => state.members.find(m => m.id === id)?.name).filter(Boolean);
+        // Portions each eater had (default 1), e.g. 5 beers: Vins 2, SC 1, KY 1, Wai 1
+        function shareOf(item, id) {
+            return Math.max(1, parseInt(item.shares?.[id]) || 1);
+        }
+
+        function totalShares(item) {
+            return item.assignedMemberIds.reduce((sum, id) => sum + shareOf(item, id), 0);
+        }
+
+        function memberNamesLabel(ids, shares = {}) {
+            const names = ids.map(id => {
+                const name = state.members.find(m => m.id === id)?.name;
+                return name && (shares?.[id] > 1 ? `${name} ×${shares[id]}` : name);
+            }).filter(Boolean);
             return names.length ? names.join(', ') : 'Select who ate this…';
         }
 
@@ -1289,27 +1414,53 @@
         }
 
         // itemId: when set, ticking a box updates that item immediately (used by table rows)
-        function memberPickerHtml(pickerId, selectedIds, itemId = '') {
-            const options = state.members.map(m => `
-                <label class="flex items-center gap-2 px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer">
-                    <input type="checkbox" value="${m.id}" ${selectedIds.includes(m.id) ? 'checked' : ''} onchange="onMemberPickerChange('${pickerId}')" class="picker-cb rounded text-emerald-600 focus:ring-emerald-500">
-                    <span class="flex-1 text-slate-700 dark:text-slate-200">${m.name}</span>
-                    <span class="text-[10px] text-slate-400">${roleLabel(m.role)}</span>
-                </label>
-            `).join('');
+        // shares: portions per member; pass null to hide the − / + portion steppers (bulk picker)
+        function memberPickerHtml(pickerId, selectedIds, itemId = '', shares = {}) {
+            const withShares = shares !== null;
+            const options = state.members.map(m => {
+                const checked = selectedIds.includes(m.id);
+                const count = checked ? Math.max(1, parseInt(shares?.[m.id]) || 1) : 1;
+                const stepBtn = 'w-5 h-5 flex items-center justify-center rounded bg-slate-100 dark:bg-slate-700 text-slate-500 hover:text-emerald-600';
+                return `
+                <div class="picker-row flex items-center gap-2 px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-700/50" data-name="${escapeHtml(m.name.toLowerCase())}">
+                    <label class="flex flex-1 min-w-0 items-center gap-2 cursor-pointer">
+                        <input type="checkbox" value="${m.id}" ${checked ? 'checked' : ''} onchange="onMemberPickerChange('${pickerId}')" class="picker-cb rounded text-emerald-600 focus:ring-emerald-500">
+                        <span class="flex-1 truncate text-slate-700 dark:text-slate-200">${m.name}</span>
+                        <span class="text-[10px] text-slate-400">${roleLabel(m.role)}</span>
+                    </label>
+                    ${withShares ? `
+                    <div class="share-stepper flex items-center gap-1 ${checked ? '' : 'invisible'}" data-id="${m.id}" title="Portions (e.g. 2 glasses)">
+                        <button type="button" onclick="stepShare('${pickerId}', '${m.id}', -1)" class="${stepBtn}">−</button>
+                        <span class="share-count w-4 text-center font-semibold text-slate-700 dark:text-slate-200">${count}</span>
+                        <button type="button" onclick="stepShare('${pickerId}', '${m.id}', 1)" class="${stepBtn}">+</button>
+                    </div>` : ''}
+                </div>
+            `;
+            }).join('');
 
             return `
-                <div id="${pickerId}" class="member-picker" data-item-id="${itemId}">
+                <div id="${pickerId}" class="member-picker" data-item-id="${itemId}" data-shares="${withShares ? '1' : ''}">
                     <button type="button" onclick="toggleMemberPicker('${pickerId}')" class="w-full flex items-center justify-between gap-2 px-3 py-2 text-xs text-left border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500">
-                        <span class="${pickerLabelClass(selectedIds)}">${memberNamesLabel(selectedIds)}</span>
+                        <span class="${pickerLabelClass(selectedIds)}">${memberNamesLabel(selectedIds, shares)}</span>
                         <i class="fa-solid fa-chevron-down text-[10px] text-slate-400"></i>
                     </button>
-                    <div class="picker-panel hidden fixed z-[60] py-1 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl max-h-64 overflow-y-auto custom-scrollbar">
-                        <div class="flex justify-between px-3 py-1.5 border-b border-slate-100 dark:border-slate-700 text-[11px]">
-                            <button type="button" onclick="setAllInPicker('${pickerId}', true)" class="text-emerald-600 dark:text-emerald-400 hover:underline">Select all</button>
-                            <button type="button" onclick="setAllInPicker('${pickerId}', false)" class="text-slate-400 hover:underline">Clear</button>
+                    <div class="picker-panel hidden fixed z-[60] pb-1 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl max-h-72 overflow-y-auto custom-scrollbar">
+                        <div class="sticky top-0 z-10 bg-white dark:bg-slate-800 border-b border-slate-100 dark:border-slate-700">
+                            <div class="px-2 pt-2">
+                                <div class="relative">
+                                    <i class="fa-solid fa-magnifying-glass absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] text-slate-400"></i>
+                                    <input type="search" placeholder="Search name…" autocomplete="off" oninput="filterPicker('${pickerId}', this.value)" onkeydown="onPickerSearchKey(event, '${pickerId}')"
+                                        class="picker-search w-full pl-7 pr-2 py-1.5 text-xs border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500">
+                                </div>
+                            </div>
+                            <div class="flex justify-between px-3 py-1.5 text-[11px]">
+                                <button type="button" onclick="setAllInPicker('${pickerId}', true)" class="text-emerald-600 dark:text-emerald-400 hover:underline">Select all</button>
+                                <button type="button" onclick="setAllInPicker('${pickerId}', false)" class="text-slate-400 hover:underline">Clear</button>
+                            </div>
                         </div>
                         ${options}
+                        <div class="picker-empty hidden px-3 py-2 text-slate-400 italic">No one matches that name</div>
+                        ${withShares ? `<div class="px-3 pt-1.5 pb-1 border-t border-slate-100 dark:border-slate-700 text-[10px] text-slate-400">Had more than one? Use − / + (e.g. 2 of 5 beers).</div>` : ''}
                     </div>
                 </div>
             `;
@@ -1320,6 +1471,25 @@
             return picker ? Array.from(picker.querySelectorAll('.picker-cb:checked')).map(cb => cb.value) : [];
         }
 
+        // Only ticked members with more than 1 portion are stored
+        function getPickerShares(pickerId) {
+            const shares = {};
+            document.getElementById(pickerId)?.querySelectorAll('.share-stepper').forEach(st => {
+                const n = parseInt(st.querySelector('.share-count').textContent) || 1;
+                const cb = st.parentElement.querySelector('.picker-cb');
+                if (cb.checked && n > 1) shares[st.dataset.id] = n;
+            });
+            return shares;
+        }
+
+        function stepShare(pickerId, memberId, delta) {
+            const stepper = document.getElementById(pickerId)?.querySelector(`.share-stepper[data-id="${memberId}"]`);
+            if (!stepper) return;
+            const countEl = stepper.querySelector('.share-count');
+            countEl.textContent = Math.min(99, Math.max(1, (parseInt(countEl.textContent) || 1) + delta));
+            onMemberPickerChange(pickerId);
+        }
+
         function toggleMemberPicker(pickerId) {
             const picker = document.getElementById(pickerId);
             const panel = picker?.querySelector('.picker-panel');
@@ -1328,42 +1498,117 @@
             closeMemberPickers();
             if (wasOpen) return;
 
-            // Fixed positioning so the list isn't clipped by the scrollable items table
+            const search = panel.querySelector('.picker-search');
+            search.value = '';
+            filterPicker(pickerId, '');
+            panel.classList.remove('hidden');
+            positionPickerPanel(picker);
+            // Jump straight into the search on computers; on phones wait for a tap so the keyboard doesn't pop up
+            if (window.matchMedia('(pointer: fine)').matches) search.focus();
+        }
+
+        // Fixed positioning so the list isn't clipped by the scrollable items table
+        function positionPickerPanel(picker) {
+            const panel = picker.querySelector('.picker-panel');
             const rect = picker.querySelector('button').getBoundingClientRect();
-            const width = Math.max(rect.width, 200);
+            const width = Math.max(rect.width, picker.dataset.shares ? 260 : 200);
             panel.style.width = `${width}px`;
             panel.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - width - 8))}px`;
-            panel.classList.remove('hidden');
             const fitsBelow = window.innerHeight - rect.bottom > panel.offsetHeight + 8;
             panel.style.top = (!fitsBelow && rect.top > panel.offsetHeight + 8)
                 ? `${rect.top - panel.offsetHeight - 4}px`
                 : `${rect.bottom + 4}px`;
         }
 
+        // Typing in a picker's search: the phone keyboard resizes / scrolls the page, so follow the button instead of closing
+        function onPickerViewportChange(e) {
+            const openPanel = document.querySelector('.picker-panel:not(.hidden)');
+            if (!openPanel || e.target?.closest?.('.picker-panel')) return;
+            if (document.activeElement?.classList.contains('picker-search') && openPanel.contains(document.activeElement)) {
+                positionPickerPanel(openPanel.closest('.member-picker'));
+            } else {
+                closeMemberPickers();
+            }
+        }
+
         function closeMemberPickers() {
             document.querySelectorAll('.picker-panel:not(.hidden)').forEach(p => p.classList.add('hidden'));
         }
 
+        function filterPicker(pickerId, query) {
+            const picker = document.getElementById(pickerId);
+            if (!picker) return;
+            const q = query.trim().toLowerCase();
+            let shown = 0;
+            picker.querySelectorAll('.picker-row').forEach(row => {
+                const match = !q || row.dataset.name.includes(q);
+                row.classList.toggle('hidden', !match);
+                if (match) shown++;
+            });
+            picker.querySelector('.picker-empty').classList.toggle('hidden', shown > 0);
+        }
+
+        // Enter ticks / unticks the first match, then clears the search for the next name
+        function onPickerSearchKey(e, pickerId) {
+            if (e.key !== 'Enter') return;
+            e.preventDefault();
+            const cb = document.getElementById(pickerId)?.querySelector('.picker-row:not(.hidden) .picker-cb');
+            if (!cb) return;
+            cb.checked = !cb.checked;
+            onMemberPickerChange(pickerId);
+            e.target.value = '';
+            filterPicker(pickerId, '');
+        }
+
+        // "Select all" ticks only the names matching the search; "Clear" unticks everyone
         function setAllInPicker(pickerId, checked) {
-            document.getElementById(pickerId)?.querySelectorAll('.picker-cb').forEach(cb => cb.checked = checked);
+            const rows = checked ? '.picker-row:not(.hidden) .picker-cb' : '.picker-cb';
+            document.getElementById(pickerId)?.querySelectorAll(rows).forEach(cb => cb.checked = checked);
             onMemberPickerChange(pickerId);
         }
 
         function onMemberPickerChange(pickerId) {
             const picker = document.getElementById(pickerId);
             if (!picker) return;
+            // Unticked members hide their stepper and go back to 1 portion
+            picker.querySelectorAll('.share-stepper').forEach(st => {
+                const checked = st.parentElement.querySelector('.picker-cb').checked;
+                st.classList.toggle('invisible', !checked);
+                if (!checked) st.querySelector('.share-count').textContent = '1';
+            });
             const selectedIds = getPickerSelection(pickerId);
+            const shares = getPickerShares(pickerId);
             const label = picker.querySelector('.picker-label');
-            label.textContent = memberNamesLabel(selectedIds);
+            label.textContent = memberNamesLabel(selectedIds, shares);
             label.className = pickerLabelClass(selectedIds);
 
             const item = state.items.find(i => i.id === picker.dataset.itemId);
             if (item) {
                 item.assignedMemberIds = selectedIds;
+                item.shares = shares;
                 refreshItemRowStatus(item);
                 calculateAndRenderBreakdown();
                 saveState();
             }
+        }
+
+        // Before sharing: every receipt with items needs a payer and eaters. Opens the first one that doesn't.
+        function checkReceiptsReady() {
+            const r = allReceipts().find(receiptNeedsWork);
+            if (!r) {
+                if (allReceipts().every(r => r.items.length === 0)) {
+                    showToast('Add or scan some items first', true);
+                    return false;
+                }
+                return true;
+            }
+            switchReceipt(r.id);
+            if (!state.paidByMemberId) {
+                showToast(`Please select who paid ${receiptLabel(r)} first!`, true);
+                elements.paidByMember?.focus();
+                return false;
+            }
+            return checkAllItemsAssigned();
         }
 
         function checkAllItemsAssigned() {
@@ -1666,6 +1911,69 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
             saveState();
         }
 
+        // --- RECEIPT TABS (one outing can have several receipts, each paid by someone) ---
+        function switchReceipt(id) {
+            syncActiveReceipt();
+            const r = state.receipts.find(r => r.id === id);
+            if (!r || id === state.activeReceiptId) return;
+            closeMemberPickers();
+            loadReceipt(r);
+            renderAll();
+        }
+
+        function addReceipt() {
+            syncActiveReceipt();
+            const r = blankReceipt();
+            state.receipts.push(r);
+            closeMemberPickers();
+            loadReceipt(r);
+            renderAll();
+            showToast(`Added ${receiptLabel(r)} — scan it or add its items`);
+        }
+
+        function deleteReceipt(id) {
+            const receipts = allReceipts();
+            const r = receipts.find(r => r.id === id);
+            if (!r || receipts.length <= 1) return;
+            if (r.items.length > 0 && !confirm(`Delete ${receiptLabel(r)} and its ${r.items.length} item(s)?`)) return;
+
+            const idx = receipts.indexOf(r);
+            const label = receiptLabel(r);
+            state.receipts = receipts.filter(x => x !== r);
+            if (id === state.activeReceiptId) loadReceipt(state.receipts[Math.max(0, idx - 1)]);
+            renderAll();
+            showToast(`Deleted ${label}`);
+        }
+
+        function receiptNeedsWork(r) {
+            return r.items.length > 0 && (!r.paidByMemberId || r.items.some(i => i.assignedMemberIds.length === 0));
+        }
+
+        function renderReceiptTabs() {
+            const tabs = document.getElementById('receipt-tabs');
+            if (!tabs) return;
+            const receipts = allReceipts();
+            tabs.innerHTML = receipts.map(r => {
+                const active = r.id === state.activeReceiptId;
+                const payer = state.members.find(m => m.id === r.paidByMemberId);
+                const total = computeBill(billStateFor(r)).netTotal;
+                return `
+                    <div class="shrink-0 flex items-center rounded-xl border ${active ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40 ring-2 ring-emerald-500/20' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-emerald-300'}">
+                        <button type="button" onclick="switchReceipt('${r.id}')" class="pl-3 ${receipts.length > 1 ? 'pr-1.5' : 'pr-3'} py-1.5 text-left">
+                            <div class="flex items-center gap-1.5 text-xs font-semibold ${active ? 'text-emerald-800 dark:text-emerald-300' : 'text-slate-700 dark:text-slate-200'}">
+                                ${receiptNeedsWork(r) ? '<span class="w-1.5 h-1.5 rounded-full bg-amber-500" title="Needs a payer or eaters"></span>' : ''}
+                                <span class="max-w-[160px] truncate">${escapeHtml(receiptLabel(r))}</span>
+                            </div>
+                            <div class="text-[10px] text-slate-400">${payer ? `${escapeHtml(payer.name)} paid` : 'No payer yet'} · ${formatRM(total)}</div>
+                        </button>
+                        ${receipts.length > 1 ? `
+                        <button type="button" onclick="deleteReceipt('${r.id}')" title="Delete this receipt" class="pr-2.5 pl-1 py-2 text-slate-300 dark:text-slate-500 hover:text-rose-500">
+                            <i class="fa-solid fa-xmark text-xs"></i>
+                        </button>` : ''}
+                    </div>`;
+            }).join('');
+        }
+
         function renderNewMemberParentOptions() {
             if (!elements.newMemberParent) return;
             elements.newMemberParent.innerHTML = '';
@@ -1745,8 +2053,8 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
             if (!elements.itemMembersSlot) return;
             // Keep current ticks across re-renders, minus anyone who was removed
             const keep = pickerId => getPickerSelection(pickerId).filter(id => state.members.some(m => m.id === id));
-            elements.itemMembersSlot.innerHTML = memberPickerHtml('add-item-picker', keep('add-item-picker'));
-            if (elements.bulkMembersSlot) elements.bulkMembersSlot.innerHTML = memberPickerHtml('bulk-picker', keep('bulk-picker'));
+            elements.itemMembersSlot.innerHTML = memberPickerHtml('add-item-picker', keep('add-item-picker'), '', getPickerShares('add-item-picker'));
+            if (elements.bulkMembersSlot) elements.bulkMembersSlot.innerHTML = memberPickerHtml('bulk-picker', keep('bulk-picker'), '', null);
         }
 
         function renderPayerSelectOptions() {
@@ -1865,7 +2173,7 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
                 tr.id = `item-row-${item.id}`;
                 tr.innerHTML = `
                     <td class="py-2.5 px-3 font-semibold text-slate-800 dark:text-slate-100">${escapeHtml(item.name)}</td>
-                    <td class="py-2 px-3 min-w-[160px] max-w-[220px]">${memberPickerHtml(`picker-${item.id}`, item.assignedMemberIds, item.id)}</td>
+                    <td class="py-2 px-3 min-w-[160px] max-w-[220px]">${memberPickerHtml(`picker-${item.id}`, item.assignedMemberIds, item.id, item.shares || {})}</td>
                     <td class="py-2.5 px-3">
                         ${!state.sstEnabled ? `<span class="text-slate-300 dark:text-slate-600">—</span>` : `<select onchange="updateItemTier('${item.id}', this.value)" title="SST tier" class="px-1.5 py-1 text-[11px] font-medium bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border border-transparent rounded outline-none focus:ring-2 focus:ring-emerald-500">
                             ${tierOptions}
@@ -1894,6 +2202,7 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
             const tr = document.getElementById(`item-row-${item.id}`);
             if (!tr) return;
             const n = item.assignedMemberIds.length;
+            const portions = totalShares(item);
             tr.className = n === 0
                 ? 'bg-amber-50 dark:bg-amber-950/30 transition-colors'
                 : 'hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors';
@@ -1904,7 +2213,10 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
                 perHead.textContent = 'Needs eater';
             } else {
                 perHead.className = 'per-head text-[10px] text-slate-400';
-                perHead.textContent = n > 1 ? `÷${n} = RM ${(item.price / n).toFixed(2)} each` : '';
+                const each = (item.price / portions).toFixed(2);
+                perHead.textContent = portions === n
+                    ? (n > 1 ? `÷${n} = RM ${each} each` : '')
+                    : `÷${portions} portions = RM ${each} per portion`;
             }
         }
 
@@ -1918,7 +2230,7 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
             renderTaxDropdowns();
             elements.editItemTaxTier.value = item.taxTierId;
 
-            elements.editItemMembersSlot.innerHTML = memberPickerHtml('edit-item-picker', item.assignedMemberIds);
+            elements.editItemMembersSlot.innerHTML = memberPickerHtml('edit-item-picker', item.assignedMemberIds, '', item.shares || {});
 
             elements.editItemModal.classList.remove('hidden');
         }
@@ -2078,17 +2390,18 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
             const roundingAdj = round2(netTotal - totalBeforeRounding);
 
             s.items.forEach(item => {
-                const n = item.assignedMemberIds.length;
-                if (n === 0) return;
+                const n = totalShares(item);
+                if (item.assignedMemberIds.length === 0) return;
                 const line = taxLines[tierOf(item).id];
                 const sub = item.price * factor;
                 const svc = subtotal > 0 ? (item.price / subtotal) * serviceCharge : 0;
                 const tax = line && line.rawTaxable > 0 ? (taxBaseOf(item) / line.rawTaxable) * line.amount : 0;
                 item.assignedMemberIds.forEach(id => {
                     if (!per[id]) return;
-                    per[id].sub += sub / n;
-                    per[id].svc += svc / n;
-                    per[id].tax += tax / n;
+                    const w = shareOf(item, id) / n;
+                    per[id].sub += sub * w;
+                    per[id].svc += svc * w;
+                    per[id].tax += tax * w;
                 });
             });
 
@@ -2127,10 +2440,8 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
             elements.matchingStatusBadge.innerHTML = `<i class="fa-solid ${icon}"></i> ${text}`;
         }
 
-        function calculateAndRenderBreakdown() {
-            const bill = computeBill(state);
-            renderBillSummary(bill);
-
+        // Rolls each member's share of one receipt up to their primary payer's family (dependents and covered guests)
+        function computeFamilyBreakdowns(s, bill) {
             const blank = () => ({ sub: 0, svc: 0, tax: 0 });
             const addTo = (target, share, k = 1) => {
                 target.sub += share.sub / k;
@@ -2138,7 +2449,7 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
                 target.tax += share.tax / k;
             };
 
-            const primaries = state.members.filter(m => m.role === 'primary');
+            const primaries = s.members.filter(m => m.role === 'primary');
             const primaryBreakdowns = {};
 
             primaries.forEach(p => {
@@ -2153,15 +2464,15 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
                 };
             });
 
-            state.members.filter(m => m.role === 'dependent').forEach(dep => {
+            s.members.filter(m => m.role === 'dependent').forEach(dep => {
                 if (dep.parentId && primaryBreakdowns[dep.parentId]) {
                     primaryBreakdowns[dep.parentId].dependents.push({ member: dep, ...(bill.per[dep.id] || blank()) });
                 }
             });
 
-            state.members.filter(m => m.role === 'standalone').forEach(guest => {
+            s.members.filter(m => m.role === 'standalone').forEach(guest => {
                 const share = bill.per[guest.id] || blank();
-                const rule = state.coverageRules[guest.id] || { mode: 'split_even', coveredByPrimaryIds: primaries.map(p => p.id) };
+                const rule = s.coverageRules[guest.id] || { mode: 'split_even', coveredByPrimaryIds: primaries.map(p => p.id) };
 
                 if (rule.mode === 'single' && rule.singlePrimaryId && primaryBreakdowns[rule.singlePrimaryId]) {
                     addTo(primaryBreakdowns[rule.singlePrimaryId].guests, share);
@@ -2179,7 +2490,7 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
             });
 
             // The 5-sen rounding is absorbed by whoever paid the bill (pro-rata if nobody is picked yet)
-            const frontBreakdown = primaryBreakdowns[state.paidByMemberId];
+            const frontBreakdown = primaryBreakdowns[s.paidByMemberId];
             const preRoundingSum = primaries.reduce((sum, p) => sum + primaryBreakdowns[p.id].finalTotal, 0);
             primaries.forEach(p => {
                 const b = primaryBreakdowns[p.id];
@@ -2190,6 +2501,15 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
                 }
                 b.finalTotal += b.roundingShare;
             });
+            return primaryBreakdowns;
+        }
+
+        function calculateAndRenderBreakdown() {
+            const bill = computeBill(state);
+            renderBillSummary(bill);
+            const primaries = state.members.filter(m => m.role === 'primary');
+            const primaryBreakdowns = computeFamilyBreakdowns(state, bill);
+            const multiReceipt = state.receipts.length > 1;
 
             let calculatedSumOfPayers = 0;
             const frontPayer = state.members.find(m => m.id === state.paidByMemberId);
@@ -2224,7 +2544,7 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
                                     ${p.name}
                                     ${isFrontPayer ? `<span class="px-2 py-0.5 text-[10px] bg-emerald-100 text-emerald-800 font-semibold rounded-full">Paid Front Total</span>` : ''}
                                 </h4>
-                                <span class="text-[11px] text-slate-400">${isFrontPayer ? 'Collects from others' : (frontPayer ? `Pay to ${frontPayer.name}` : 'Settlement Payer')}</span>
+                                <span class="text-[11px] text-slate-400">${multiReceipt ? 'Share of this receipt' : (isFrontPayer ? 'Collects from others' : (frontPayer ? `Pay to ${frontPayer.name}` : 'Settlement Payer'))}</span>
                             </div>
                         </div>
                         <div class="text-right">
@@ -2262,8 +2582,6 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
                 elements.breakdownCardsList.appendChild(card);
             });
 
-            lastPrimaryBreakdowns = primaryBreakdowns;
-
             elements.reconcilePayersSum.textContent = formatRM(calculatedSumOfPayers);
             elements.reconcileGrandTotal.textContent = formatRM(bill.netTotal);
 
@@ -2292,6 +2610,100 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
             } else {
                 setMatchingBadge('ok', 'fa-check-circle', hasReceiptTotal ? 'Matches receipt' : '100% Matched');
             }
+
+            const breakdownTitle = document.getElementById('breakdown-title');
+            if (breakdownTitle) breakdownTitle.textContent = multiReceipt ? `Family Breakdown · ${receiptLabel(state.receipts.find(r => r.id === state.activeReceiptId))}` : 'Primary Payers Breakdown';
+            renderReceiptTabs();
+            renderSettleCard();
+        }
+
+        // Combines every receipt: what each family ate vs what they paid, then the fewest transfers to settle up
+        function computeSettlement() {
+            const primaries = state.members.filter(m => m.role === 'primary');
+            const families = primaries.map(p => ({ member: p, perReceipt: [], ate: 0, paid: 0, balance: 0 }));
+            const byId = Object.fromEntries(families.map(f => [f.member.id, f]));
+
+            const receipts = allReceipts().filter(r => r.items.length > 0).map(r => {
+                const s = billStateFor(r);
+                const bill = computeBill(s);
+                const breakdowns = computeFamilyBreakdowns(s, bill);
+                families.forEach(f => {
+                    const amount = breakdowns[f.member.id]?.finalTotal || 0;
+                    f.perReceipt.push(amount);
+                    f.ate += amount;
+                });
+                if (byId[r.paidByMemberId]) byId[r.paidByMemberId].paid += bill.netTotal;
+                return { receipt: r, name: receiptLabel(r), bill, breakdowns, payer: state.members.find(m => m.id === r.paidByMemberId) };
+            });
+
+            // Work in sen so the transfers add up exactly; any leftover sen goes to the biggest creditor
+            families.forEach(f => f.balance = Math.round((f.paid - f.ate) * 100));
+            const leftover = families.reduce((sum, f) => sum + f.balance, 0);
+            if (leftover !== 0 && families.length > 0) {
+                families.reduce((a, b) => (b.balance > a.balance ? b : a)).balance -= leftover;
+            }
+
+            // Biggest debtor pays biggest creditor until everyone is even (at most families − 1 transfers)
+            const debtors = families.filter(f => f.balance < 0).map(f => ({ f, left: -f.balance })).sort((a, b) => b.left - a.left);
+            const creditors = families.filter(f => f.balance > 0).map(f => ({ f, left: f.balance })).sort((a, b) => b.left - a.left);
+            const transfers = [];
+            let d = 0, c = 0;
+            while (d < debtors.length && c < creditors.length) {
+                const amount = Math.min(debtors[d].left, creditors[c].left);
+                transfers.push({ from: debtors[d].f.member, to: creditors[c].f.member, amount: amount / 100 });
+                debtors[d].left -= amount;
+                creditors[c].left -= amount;
+                if (debtors[d].left === 0) d++;
+                if (creditors[c].left === 0) c++;
+            }
+
+            families.forEach(f => f.balance /= 100);
+            const grandTotal = round2(receipts.reduce((sum, x) => sum + x.bill.netTotal, 0));
+            return { receipts, families, transfers, grandTotal };
+        }
+
+        function renderSettleCard() {
+            const card = document.getElementById('settle-card');
+            if (!card) return;
+            const multiReceipt = state.receipts.length > 1;
+            card.classList.toggle('hidden', !multiReceipt);
+            if (!multiReceipt) return;
+
+            const { receipts, families, transfers, grandTotal } = computeSettlement();
+            const pending = allReceipts().filter(receiptNeedsWork);
+            document.getElementById('settle-subtitle').textContent = `${receipts.length} receipt${receipts.length === 1 ? '' : 's'} · ${formatRM(grandTotal)}`;
+
+            const warning = pending.length ? `
+                <div class="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-[11px] text-amber-700 dark:text-amber-300">
+                    <i class="fa-solid fa-triangle-exclamation"></i> Not final yet: ${pending.map(r => escapeHtml(receiptLabel(r))).join(', ')} still need${pending.length === 1 ? 's' : ''} a payer or eaters.
+                </div>` : '';
+
+            const familyRows = families.map(f => `
+                <tr class="border-t border-slate-100 dark:border-slate-700">
+                    <td class="py-1.5 font-semibold text-slate-700 dark:text-slate-200">${escapeHtml(f.member.name)}</td>
+                    <td class="py-1.5 text-right">${formatRM(f.ate)}</td>
+                    <td class="py-1.5 text-right">${formatRM(f.paid)}</td>
+                    <td class="py-1.5 text-right font-semibold ${f.balance > 0 ? 'text-emerald-600 dark:text-emerald-400' : (f.balance < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-400')}">
+                        ${f.balance > 0 ? `gets ${formatRM(f.balance)}` : (f.balance < 0 ? `pays ${formatRM(-f.balance)}` : 'even')}
+                    </td>
+                </tr>`).join('');
+
+            const transferRows = transfers.length ? transfers.map(t => `
+                <div class="flex items-center justify-between p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40">
+                    <span class="text-xs text-slate-700 dark:text-slate-200"><b>${escapeHtml(t.from.name)}</b> <i class="fa-solid fa-arrow-right text-[10px] text-slate-400 mx-1"></i> <b>${escapeHtml(t.to.name)}</b></span>
+                    <span class="text-sm font-extrabold text-emerald-700 dark:text-emerald-400">${formatRM(t.amount)}</span>
+                </div>`).join('') : `<div class="text-xs text-slate-400 italic">Everyone is even — nothing to transfer.</div>`;
+
+            document.getElementById('settle-body').innerHTML = `
+                ${warning}
+                <div class="space-y-2">${transferRows}</div>
+                <table class="w-full text-xs text-slate-500 dark:text-slate-400">
+                    <thead><tr class="text-[10px] uppercase tracking-wider text-slate-400">
+                        <th class="py-1 text-left font-medium">Family</th><th class="py-1 text-right font-medium">Ate</th>
+                        <th class="py-1 text-right font-medium">Paid</th><th class="py-1 text-right font-medium">Balance</th>
+                    </tr></thead>
+                    <tbody>${familyRows}</tbody>
+                </table>`;
         }
 
         function openEditMemberModal(memberId) {
@@ -2351,6 +2763,9 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
                 state.coverageRules[dep.id] = { mode: 'split_even', coveredByPrimaryIds: [...primaries] };
             });
 
+            allReceipts().forEach(r => {
+                if (r.paidByMemberId === primaryId) r.paidByMemberId = '';
+            });
             if (state.paidByMemberId === primaryId) state.paidByMemberId = '';
         }
 
@@ -2359,7 +2774,8 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
             if (!member) return;
 
             // Shared items just get re-split among the remaining eaters; items only this member ate need a new eater
-            const soleCount = state.items.filter(i => i.assignedMemberIds.length === 1 && i.assignedMemberIds[0] === memberId).length;
+            const allItems = allReceipts().flatMap(r => r.items);
+            const soleCount = allItems.filter(i => i.assignedMemberIds.length === 1 && i.assignedMemberIds[0] === memberId).length;
             if (soleCount > 0 && !confirm(`${member.name} is the only eater of ${soleCount} item(s). Remove ${member.name}? Those items stay on the bill but will need a new eater.`)) {
                 return;
             }
@@ -2368,8 +2784,9 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
             delete state.coverageRules[memberId];
 
             state.members = state.members.filter(m => m.id !== memberId);
-            state.items.forEach(i => {
+            allItems.forEach(i => {
                 i.assignedMemberIds = i.assignedMemberIds.filter(id => id !== memberId);
+                if (i.shares) delete i.shares[memberId];
             });
 
             elements.editMemberModal?.classList.add('hidden');
@@ -2377,41 +2794,230 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
             renderAll();
         }
 
-        function generateWhatsAppText() {
-            const frontPayer = state.members.find(m => m.id === state.paidByMemberId);
-            let text = `🧾 *BILL SPLIT SUMMARY*\n`;
-            if (state.merchant) text += `📍 Store: *${state.merchant}*\n`;
-            if (state.date) text += `📅 Date: ${state.date}\n`;
-            text += `------------------------------\n`;
+        // --- SCREENSHOT EXPORT (whole bill as a PNG to forward on WhatsApp) ---
+        let screenshotBlob = null;
 
-            state.items.forEach(i => {
-                text += `• ${i.name}: RM ${i.price.toFixed(2)} (${memberNamesLabel(i.assignedMemberIds)})\n`;
-            });
+        function screenshotFileName() {
+            const receipts = allReceipts().filter(r => r.items.length > 0);
+            const first = receipts[0] || state;
+            const parts = receipts.length > 1 ? [first.date, `${receipts.length} receipts`] : [first.merchant, first.date];
+            const slug = parts.filter(Boolean).join(' ').replace(/[^\w一-鿿-]+/g, '-').replace(/^-|-$/g, '');
+            return `bill-${slug || 'split'}.png`;
+        }
 
-            const bill = computeBill(state);
-            text += `------------------------------\n`;
-            text += `Subtotal: ${formatRM(bill.subtotal)}\n`;
-            if (bill.discount > 0) text += `Discount: ${formatRM(-bill.discount)}\n`;
-            if (bill.serviceCharge > 0) text += `Service Charge (${state.serviceChargeRate}%): ${formatRM(bill.serviceCharge)}\n`;
-            bill.taxLines.forEach(t => text += `SST ${t.rate}%: ${formatRM(t.amount)}\n`);
-            if (bill.roundingAdj !== 0) text += `Rounding: ${formatRM(bill.roundingAdj)}\n`;
-            text += `*Net Total: ${formatRM(bill.netTotal)}*\n`;
-            text += `------------------------------\n`;
-            text += `💳 *FRONT PAID BY:* ${frontPayer ? frontPayer.name : 'Unknown'}\n\n`;
-            text += `*SETTLEMENT PAYMENTS:*\n`;
+        // A phone-width, receipt-style card built only for the image (plain text, always light theme),
+        // so html2canvas never has to draw form fields. Covers one receipt or a whole outing.
+        function buildShareCardHtml(settlement) {
+            const C = { ink: '#0f172a', text: '#334155', muted: '#64748b', faint: '#94a3b8', line: '#e2e8f0', green: '#047857', red: '#be123c', soft: '#f1f5f9' };
+            const row = (label, value, style = '') =>
+                `<div style="display:flex;justify-content:space-between;gap:12px;padding:3px 0;${style}"><span>${label}</span><span style="white-space:nowrap">${value}</span></div>`;
+            const section = (title, body) => `
+                <div style="padding:16px 20px;border-top:1px solid ${C.line}">
+                    <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:${C.faint};margin-bottom:8px">${title}</div>
+                    ${body}
+                </div>`;
+            const name = m => escapeHtml(m?.name || '?');
 
-            const primaries = state.members.filter(m => m.role === 'primary');
-            calculateAndRenderBreakdown();
-            primaries.forEach(p => {
-                const b = lastPrimaryBreakdowns[p.id];
-                const amountText = `RM ${(b ? b.finalTotal : 0).toFixed(2)}`;
+            const { receipts, families, transfers, grandTotal } = settlement;
+            const multi = receipts.length > 1;
 
-                if (p.id === state.paidByMemberId) {
-                    text += `• *${p.name}:* ${amountText} (Paid Front)\n`;
-                } else {
-                    text += `• *${p.name}:* Pay *${amountText}* to ${frontPayer ? frontPayer.name : 'Front Payer'}\n`;
+            // 1. Who pays whom, combined over every receipt
+            const settle = transfers.length
+                ? transfers.map(t => row(
+                    `<b style="color:${C.ink}">${name(t.from)}</b> <span style="color:${C.faint}">→</span> ${name(t.to)}`,
+                    `<b style="color:${C.green};font-size:17px">${formatRM(t.amount)}</b>`,
+                    'font-size:15px;padding:6px 0;align-items:center')).join('')
+                : `<div style="color:${C.muted}">Everyone is even — nothing to transfer.</div>`;
+
+            // 2. Each family: one receipt shows what the share is made of; several receipts show ate / paid / balance
+            const familyCard = (f, total, lines) => `
+                <div style="padding:10px 12px;margin-bottom:8px;background:${C.soft};border-radius:12px">
+                    ${row(`<b style="color:${C.ink};font-size:14px">${name(f.member)}${state.members.some(m => m.parentId === f.member.id) ? ' family' : ''}</b>`, `<b style="color:${C.ink};font-size:14px">${total}</b>`, 'padding-bottom:6px')}
+                    <div style="font-size:12px;color:${C.text}">${lines}</div>
+                </div>`;
+            const familyCards = families.map(f => {
+                if (!multi) {
+                    const { bill, receipt } = receipts[0];
+                    const b = receipts[0].breakdowns[f.member.id];
+                    const guests = b.guests.sub + b.guests.tax;
+                    return familyCard(f, formatRM(b.finalTotal), [
+                        row(`${name(f.member)}'s food & drinks`, formatRM(b.own.sub + b.own.tax)),
+                        ...b.dependents.filter(d => d.sub + d.tax > 0.004).map(d => row(name(d.member), formatRM(d.sub + d.tax))),
+                        guests > 0.004 ? row('Covered guests', formatRM(guests)) : '',
+                        bill.serviceCharge > 0 ? row(`Service charge ${receipt.serviceChargeRate}%`, formatRM(b.svcShare), `color:${C.muted}`) : '',
+                        Math.abs(b.roundingShare) >= 0.005 ? row('Rounding', formatRM(b.roundingShare), `color:${C.muted}`) : ''
+                    ].join(''));
                 }
+                const balanceColor = f.balance > 0 ? C.green : (f.balance < 0 ? C.red : C.muted);
+                return familyCard(f, formatRM(f.ate), [
+                    ...receipts.map((x, idx) => f.perReceipt[idx] > 0.004 ? row(escapeHtml(x.name), formatRM(f.perReceipt[idx])) : ''),
+                    f.paid > 0 ? row('Paid', formatRM(-f.paid), `color:${C.muted}`) : '',
+                    row(`<b>${f.balance > 0 ? 'Gets back' : (f.balance < 0 ? 'Pays' : 'Even')}</b>`, `<b style="color:${balanceColor}">${formatRM(Math.abs(f.balance))}</b>`,
+                        `border-top:1px solid ${C.line};margin-top:4px;padding-top:5px`)
+                ].join(''));
+            }).join('');
+
+            // 3. Each receipt: items with who ate them, then its charges
+            const receiptSections = receipts.map(({ receipt: r, bill, name: label, payer }) => {
+                const items = r.items.map(i => {
+                    const portions = totalShares(i);
+                    const note = portions !== i.assignedMemberIds.length ? ` · RM ${(i.price / portions).toFixed(2)} per portion` : '';
+                    return `
+                        <div style="padding:6px 0;border-bottom:1px dashed ${C.line}">
+                            ${row(`<span style="color:${C.ink};font-weight:600">${escapeHtml(i.name)}</span>`, `<b style="color:${C.ink}">RM ${i.price.toFixed(2)}</b>`, 'padding:0')}
+                            <div style="font-size:11px;color:${C.muted};margin-top:1px">${escapeHtml(memberNamesLabel(i.assignedMemberIds, i.shares))}${note}</div>
+                        </div>`;
+                }).join('');
+
+                const receiptTotal = parseFloat(r.receiptTotal);
+                const matches = receiptTotal > 0 && Math.abs(receiptTotal - bill.netTotal) < 0.005;
+                const charges = `<div style="font-size:12px">${[
+                    row('Subtotal', formatRM(bill.subtotal)),
+                    bill.discount > 0 ? row('Discount', formatRM(-bill.discount)) : '',
+                    bill.serviceCharge > 0 ? row(`Service charge ${r.serviceChargeRate}%`, formatRM(bill.serviceCharge)) : '',
+                    ...bill.taxLines.map(t => row(`SST ${t.rate}%`, formatRM(t.amount))),
+                    bill.roundingAdj !== 0 ? row('Rounding', formatRM(bill.roundingAdj)) : '',
+                    row('<b>Net total</b>', `<b>${formatRM(bill.netTotal)}</b>`, `color:${C.ink};font-size:14px;border-top:1px solid ${C.line};margin-top:4px;padding-top:6px`),
+                    matches ? `<div style="margin-top:6px;font-size:11px;font-weight:600;color:${C.green}"><i class="fa-solid fa-circle-check"></i> Matches the printed receipt</div>` : ''
+                ].join('')}</div>`;
+
+                return multi
+                    ? section(`${escapeHtml(label)}${r.date ? ` · ${escapeHtml(r.date)}` : ''} · paid by ${name(payer)}`, `${items}<div style="margin-top:10px">${charges}</div>`)
+                    : section(`Items (${r.items.length})`, items) + section('Receipt', charges);
+            }).join('');
+
+            const first = receipts[0].receipt;
+            const payers = [...new Set(receipts.map(x => x.payer?.name).filter(Boolean))].map(escapeHtml).join(', ');
+            const dates = [...new Set(receipts.map(x => x.receipt.date).filter(Boolean))].map(escapeHtml).join(', ');
+            const title = multi ? receipts.map(x => escapeHtml(x.name)).join(' + ') : escapeHtml(first.merchant || 'Bill split');
+
+            return `
+                <div style="width:420px;background:#fff;color:${C.text};font-family:Inter,system-ui,sans-serif;font-size:13px;line-height:1.4">
+                    <div style="padding:20px;background:linear-gradient(135deg,#059669,#0f766e);color:#fff">
+                        <div style="font-size:17px;font-weight:700">${title}</div>
+                        ${dates ? `<div style="font-size:12px;opacity:.8">${dates}</div>` : ''}
+                        <div style="margin-top:14px;font-size:11px;font-weight:600;letter-spacing:.08em;opacity:.8">${multi ? `TOTAL · ${receipts.length} RECEIPTS` : 'NET TOTAL'}</div>
+                        <div style="font-size:30px;font-weight:800;line-height:1.2">${formatRM(grandTotal)}</div>
+                        <div style="font-size:12px;opacity:.9;margin-top:2px">Paid by <b>${payers || '?'}</b></div>
+                    </div>
+                    ${section('Who pays whom', settle)}
+                    ${section('Each family\'s share', familyCards)}
+                    ${receiptSections}
+                    <div style="padding:10px 20px 16px;font-size:10px;color:${C.faint};text-align:center">Split with Smart Bill Splitter</div>
+                </div>`;
+        }
+
+        async function openScreenshotModal() {
+            if (!checkReceiptsReady()) return;
+            if (typeof html2canvas !== 'function') {
+                showToast('Screenshot tool is still loading — check your internet and try again', true);
+                return;
+            }
+
+            closeMemberPickers();
+            calculateAndRenderBreakdown();
+            const btn = document.getElementById('export-screenshot-btn');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-sm"></i> Creating…';
+            const host = document.createElement('div');
+            host.style.cssText = 'position:absolute;left:-10000px;top:0';
+            host.innerHTML = buildShareCardHtml(computeSettlement());
+            document.body.appendChild(host);
+            try {
+                const canvas = await html2canvas(host.firstElementChild, { backgroundColor: '#ffffff', scale: 2, useCORS: true });
+                screenshotBlob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+                if (!screenshotBlob) throw new Error('empty image');
+
+                const preview = document.getElementById('screenshot-preview');
+                if (preview.src) URL.revokeObjectURL(preview.src);
+                preview.src = URL.createObjectURL(screenshotBlob);
+
+                // Phones: native share sheet straight to WhatsApp. Desktop: copy / save instead.
+                const file = new File([screenshotBlob], screenshotFileName(), { type: 'image/png' });
+                const canShare = !!navigator.canShare && navigator.canShare({ files: [file] });
+                document.getElementById('share-screenshot-btn').classList.toggle('hidden', !canShare);
+                document.getElementById('copy-screenshot-btn').classList.toggle('hidden', !(navigator.clipboard?.write && window.ClipboardItem));
+                document.getElementById('screenshot-modal').classList.remove('hidden');
+            } catch (err) {
+                console.error(err);
+                showToast('Could not create the image — try again', true);
+            } finally {
+                host.remove();
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-image text-sm"></i> Share Image';
+            }
+        }
+
+        async function shareScreenshot() {
+            if (!screenshotBlob) return;
+            const file = new File([screenshotBlob], screenshotFileName(), { type: 'image/png' });
+            try {
+                await navigator.share({ files: [file], title: state.merchant || 'Bill split' });
+            } catch (err) {
+                if (err.name !== 'AbortError') showToast('Sharing failed — use Save Image instead', true);
+            }
+        }
+
+        async function copyScreenshot() {
+            if (!screenshotBlob) return;
+            try {
+                await navigator.clipboard.write([new ClipboardItem({ 'image/png': screenshotBlob })]);
+                showToast('Image copied — paste it into WhatsApp');
+            } catch (err) {
+                showToast('This browser blocked copying images — use Save Image instead', true);
+            }
+        }
+
+        function downloadScreenshot() {
+            if (!screenshotBlob) return;
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(screenshotBlob);
+            a.download = screenshotFileName();
+            a.click();
+            setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+        }
+
+        function generateWhatsAppText() {
+            const { receipts, families, transfers, grandTotal } = computeSettlement();
+            const multi = receipts.length > 1;
+            const line = `------------------------------\n`;
+            let text = `🧾 *BILL SPLIT SUMMARY*\n`;
+
+            receipts.forEach(({ receipt: r, bill, name, payer }, idx) => {
+                if (multi) {
+                    text += `${line}*${idx + 1}. ${name}*${r.date ? ` (${r.date})` : ''}\n💳 Paid by ${payer ? payer.name : 'Unknown'}\n`;
+                } else {
+                    if (r.merchant) text += `📍 Store: *${r.merchant}*\n`;
+                    if (r.date) text += `📅 Date: ${r.date}\n`;
+                    text += line;
+                }
+                r.items.forEach(i => {
+                    text += `• ${i.name}: RM ${i.price.toFixed(2)} (${memberNamesLabel(i.assignedMemberIds, i.shares)})\n`;
+                });
+                if (!multi) text += line;
+                text += `Subtotal: ${formatRM(bill.subtotal)}\n`;
+                if (bill.discount > 0) text += `Discount: ${formatRM(-bill.discount)}\n`;
+                if (bill.serviceCharge > 0) text += `Service Charge (${r.serviceChargeRate}%): ${formatRM(bill.serviceCharge)}\n`;
+                bill.taxLines.forEach(t => text += `SST ${t.rate}%: ${formatRM(t.amount)}\n`);
+                if (bill.roundingAdj !== 0) text += `Rounding: ${formatRM(bill.roundingAdj)}\n`;
+                text += `*Net Total: ${formatRM(bill.netTotal)}*\n`;
+                if (!multi) text += `${line}💳 *FRONT PAID BY:* ${payer ? payer.name : 'Unknown'}\n`;
             });
+
+            if (multi) {
+                text += `${line}*ALL ${receipts.length} RECEIPTS: ${formatRM(grandTotal)}*\n`;
+                families.forEach(f => {
+                    const balance = f.balance > 0 ? `gets back ${formatRM(f.balance)}` : (f.balance < 0 ? `pays ${formatRM(-f.balance)}` : 'even');
+                    text += `• ${f.member.name}: ate ${formatRM(f.ate)}, paid ${formatRM(f.paid)} → ${balance}\n`;
+                });
+            } else {
+                text += `\n*EACH FAMILY'S SHARE:*\n`;
+                families.forEach(f => text += `• ${f.member.name}: ${formatRM(f.ate)}\n`);
+            }
+
+            text += `\n*SETTLEMENT PAYMENTS:*\n`;
+            if (transfers.length === 0) text += `Everyone is even — nothing to transfer.\n`;
+            transfers.forEach(t => text += `• *${t.from.name}* pays *${formatRM(t.amount)}* to ${t.to.name}\n`);
 
             text += `\nThank you! Please transfer accordingly. 🙏`;
             return text;
