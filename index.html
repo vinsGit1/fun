@@ -1,0 +1,1550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Family & Group Bill Splitter with Multi-Tax Support</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Font: Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Tesseract.js for Receipt OCR scanning -->
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #475569;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100 min-h-screen font-sans pb-12 transition-colors duration-200">
+    <!-- HEADER NAVBAR -->
+    <header class="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-30 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-white shadow-md shadow-emerald-500/20">
+                    <i class="fa-solid fa-receipt text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg leading-tight text-slate-800 dark:text-slate-100">Smart Bill Splitter</h1>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">Family Tiers, Shared Expenses & OCR Scanner</p>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-2 sm:space-x-3">
+                <button id="reset-default-btn" class="px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-700 transition-colors flex items-center gap-1.5">
+                    <i class="fa-solid fa-rotate-left text-slate-400"></i> <span class="hidden sm:inline">Reset Sample</span>
+                </button>
+
+                <button id="dark-mode-toggle" class="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-700 transition-colors">
+                    <i class="fa-solid fa-moon dark:hidden"></i>
+                    <i class="fa-solid fa-sun hidden dark:block text-amber-400"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+            <!-- LEFT COLUMN: INPUT CONTROLS -->
+            <div class="lg:col-span-7 space-y-6">
+
+                <!-- CARD 1: MEMBERS MANAGEMENT -->
+                <div class="bg-white dark:bg-slate-800 rounded-2xl p-5 shadow-sm border border-slate-200 dark:border-slate-700 space-y-4">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-2">
+                            <span class="w-7 h-7 rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 flex items-center justify-center font-bold text-sm">1</span>
+                            <h2 class="text-lg font-semibold">People & Family Hierarchy</h2>
+                        </div>
+                        <span id="member-count-badge" class="px-2.5 py-1 text-xs font-medium bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-full">
+                            8 Members
+                        </span>
+                    </div>
+
+                    <!-- Add Member Input Form -->
+                    <form id="add-member-form" class="flex flex-wrap sm:flex-nowrap gap-2">
+                        <input type="text" id="new-member-name" placeholder="Member name (e.g. A1, B1)" required
+                            class="flex-1 px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 dark:bg-slate-900 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500">
+                        
+                        <select id="new-member-role" class="px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 dark:bg-slate-900 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500">
+                            <option value="primary">Primary Payer</option>
+                            <option value="dependent">Dependent (Child/Spouse)</option>
+                            <option value="standalone">Standalone / Guest (e.g. D1)</option>
+                        </select>
+
+                        <select id="new-member-parent" class="hidden px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 dark:bg-slate-900 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500">
+                            <!-- Options populated dynamically -->
+                        </select>
+
+                        <button type="submit" class="w-full sm:w-auto px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-medium shadow-sm transition-colors flex items-center justify-center gap-1.5">
+                            <i class="fa-solid fa-plus text-xs"></i> Add
+                        </button>
+                    </form>
+
+                    <!-- Active Members List grouped by Primary Heads -->
+                    <div class="space-y-3 pt-2">
+                        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Primary Payers & Family Groups</div>
+                        <div id="primary-payers-list" class="flex flex-wrap gap-2">
+                            <!-- Dynamic Primary Tags -->
+                        </div>
+
+                        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider pt-2">Standalone / Guests (Shared Bills)</div>
+                        <div id="standalone-members-list" class="flex flex-wrap gap-2">
+                            <!-- Dynamic Standalone Tags -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CARD 2: DISHES & TAX CONTROL -->
+                <div class="bg-white dark:bg-slate-800 rounded-2xl p-5 shadow-sm border border-slate-200 dark:border-slate-700 space-y-4">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-2">
+                            <span class="w-7 h-7 rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 flex items-center justify-center font-bold text-sm">2</span>
+                            <h2 class="text-lg font-semibold">Food, Drink & Taxes</h2>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button id="open-ocr-modal-btn" class="px-2.5 py-1 text-xs bg-teal-50 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300 hover:bg-teal-100 rounded-lg font-medium flex items-center gap-1 border border-teal-200 dark:border-teal-800 transition-colors">
+                                <i class="fa-solid fa-camera"></i> <span class="hidden sm:inline">Scan Receipt</span>
+                            </button>
+                            <button id="open-tax-modal-btn" class="text-xs text-emerald-600 dark:text-emerald-400 hover:underline font-medium flex items-center gap-1">
+                                <i class="fa-solid fa-sliders"></i> Tax Settings
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Add Item Form -->
+                    <form id="add-item-form" class="space-y-3">
+                        <div class="grid grid-cols-1 sm:grid-cols-12 gap-2">
+                            <input type="text" id="item-name" placeholder="Item name (e.g. Curry Chicken)" required
+                                class="sm:col-span-5 px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 dark:bg-slate-900 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500">
+                            
+                            <input type="number" id="item-price" step="0.01" min="0" placeholder="RM Price (e.g. 19.00)" required
+                                class="sm:col-span-3 px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 dark:bg-slate-900 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500">
+                            
+                            <select id="item-tax-tier" class="sm:col-span-4 px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 dark:bg-slate-900 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500">
+                                <!-- Populated dynamically -->
+                            </select>
+                        </div>
+
+                        <!-- Who Consumed Selection -->
+                        <div class="space-y-1.5">
+                            <label class="block text-xs font-medium text-slate-500 dark:text-slate-400">Assign item to members:</label>
+                            <div id="item-members-checkboxes" class="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto custom-scrollbar p-1">
+                                <!-- Member Checkboxes -->
+                            </div>
+                        </div>
+
+                        <button type="submit" class="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-medium shadow-sm transition-colors flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-plus text-xs"></i> Add Item to Bill
+                        </button>
+                    </form>
+
+                    <!-- Items List Table -->
+                    <div class="overflow-x-auto pt-2">
+                        <table class="w-full text-left text-xs">
+                            <thead class="text-slate-400 border-b border-slate-200 dark:border-slate-700">
+                                <tr>
+                                    <th class="py-2 px-3 font-semibold">Item</th>
+                                    <th class="py-2 px-3 font-semibold">Eaten By</th>
+                                    <th class="py-2 px-3 font-semibold">Tax Rate</th>
+                                    <th class="py-2 px-3 font-semibold text-right">Price</th>
+                                    <th class="py-2 px-3 text-center">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="items-table-body" class="divide-y divide-slate-100 dark:divide-slate-700/50">
+                                <!-- Dynamic Items -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- CARD 3: COVERED COST ALLOCATION (D1 & D2 RULES) -->
+                <div class="bg-white dark:bg-slate-800 rounded-2xl p-5 shadow-sm border border-slate-200 dark:border-slate-700 space-y-4">
+                    <div class="flex items-center space-x-2">
+                        <span class="w-7 h-7 rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 flex items-center justify-center font-bold text-sm">3</span>
+                        <h2 class="text-lg font-semibold">Covered Guests Billing Rules</h2>
+                    </div>
+
+                    <p class="text-xs text-slate-500 dark:text-slate-400">
+                        Configure how standalone guests (e.g. D1, D2) get their final total covered—either paid by 1 single primary payer or split across selected primary payers.
+                    </p>
+
+                    <div id="coverage-rules-container" class="space-y-3">
+                        <!-- Dynamic guest coverage rules -->
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- RIGHT COLUMN: LIVE BREAKDOWN & SUMMARY -->
+            <div class="lg:col-span-5 space-y-6">
+
+                <!-- MAIN GRAND TOTAL CARD WITH MANUAL RECALCULATE BUTTON -->
+                <div class="bg-gradient-to-br from-emerald-600 to-teal-700 rounded-2xl p-6 text-white shadow-lg shadow-emerald-600/20 relative overflow-hidden space-y-4">
+                    <div class="relative z-10 space-y-4">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <span class="text-xs font-semibold text-emerald-100 uppercase tracking-wider">Grand Total Bill</span>
+                                <div id="grand-total-amount" class="text-3xl font-extrabold tracking-tight mt-1">RM 0.00</div>
+                            </div>
+                            <div class="flex gap-2">
+                                <button id="recalculate-btn" class="px-3 py-1.5 bg-white/20 hover:bg-white/30 backdrop-blur-md rounded-xl text-xs font-medium text-white flex items-center gap-1.5 transition-colors shadow-sm" title="Recalculate Bill">
+                                    <i class="fa-solid fa-calculator text-sm"></i> Update Calculation
+                                </button>
+                                <button id="export-whatsapp-btn" class="px-3 py-1.5 bg-white/20 hover:bg-white/30 backdrop-blur-md rounded-xl text-xs font-medium text-white flex items-center gap-1.5 transition-colors">
+                                    <i class="fa-brands fa-whatsapp text-sm"></i> WhatsApp Text
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-3 gap-2 pt-3 border-t border-white/10 text-xs">
+                            <div>
+                                <span class="text-emerald-200 block text-[11px]">Subtotal</span>
+                                <span id="summary-subtotal" class="font-bold">RM 0.00</span>
+                            </div>
+                            <div>
+                                <span class="text-emerald-200 block text-[11px]">Svc Charge</span>
+                                <span id="summary-svc" class="font-bold">RM 0.00</span>
+                            </div>
+                            <div>
+                                <span class="text-emerald-200 block text-[11px]">Item Taxes</span>
+                                <span id="summary-sst" class="font-bold">RM 0.00</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TOTAL SUM & RECONCILIATION MATCHING CARD -->
+                <div class="bg-white dark:bg-slate-800 rounded-2xl p-5 shadow-sm border border-slate-200 dark:border-slate-700 space-y-3">
+                    <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 pb-2.5">
+                        <h3 class="text-sm font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                            <i class="fa-solid fa-scale-balanced text-teal-500"></i> Bill Matching & Verification
+                        </h3>
+                        <span id="matching-status-badge" class="px-2.5 py-0.5 text-xs font-medium rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950/80 dark:text-emerald-300 flex items-center gap-1">
+                            <i class="fa-solid fa-check-circle"></i> 100% Matched
+                        </span>
+                    </div>
+
+                    <div class="space-y-2 text-xs">
+                        <div class="flex justify-between text-slate-600 dark:text-slate-300">
+                            <span>Sum of Primary Payers:</span>
+                            <span id="reconcile-payers-sum" class="font-semibold text-slate-800 dark:text-slate-100">RM 0.00</span>
+                        </div>
+                        <div class="flex justify-between text-slate-600 dark:text-slate-300">
+                            <span>Calculated Grand Total:</span>
+                            <span id="reconcile-grand-total" class="font-semibold text-slate-800 dark:text-slate-100">RM 0.00</span>
+                        </div>
+                        <div class="flex justify-between border-t border-slate-100 dark:border-slate-700 pt-2 text-slate-500">
+                            <span>Discrepancy / Variance:</span>
+                            <span id="reconcile-difference" class="font-bold text-emerald-600 dark:text-emerald-400">RM 0.00</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PAYER CARDS BREAKDOWN -->
+                <div class="space-y-4">
+                    <h3 class="text-base font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                        <i class="fa-solid fa-calculator text-emerald-500"></i> Primary Payers Breakdown
+                    </h3>
+
+                    <div id="breakdown-cards-list" class="space-y-3">
+                        <!-- Dynamic Payer Cards -->
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+    </main>
+
+    <!-- EDIT MEMBER MODAL -->
+    <div id="edit-member-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700 space-y-4">
+            <div class="flex justify-between items-center border-b border-slate-200 dark:border-slate-700 pb-3">
+                <h3 class="text-base font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                    <i class="fa-solid fa-user-gear text-emerald-500"></i> Edit Member & Hierarchy
+                </h3>
+                <button id="close-edit-member-btn" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                    <i class="fa-solid fa-xmark text-base"></i>
+                </button>
+            </div>
+
+            <form id="edit-member-form" class="space-y-4">
+                <input type="hidden" id="edit-member-id">
+                <div>
+                    <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Member Name</label>
+                    <input type="text" id="edit-member-name" required class="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Role</label>
+                        <select id="edit-member-role" class="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500">
+                            <option value="primary">Primary Payer</option>
+                            <option value="dependent">Dependent</option>
+                            <option value="standalone">Standalone Guest</option>
+                        </select>
+                    </div>
+                    <div id="edit-parent-container" class="hidden">
+                        <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Covered By</label>
+                        <select id="edit-member-parent" class="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500">
+                        </select>
+                    </div>
+                </div>
+
+                <div id="manage-dependents-section" class="hidden border-t border-slate-200 dark:border-slate-700 pt-3 space-y-2">
+                    <div class="flex items-center justify-between">
+                        <label class="block text-xs font-medium text-slate-500 dark:text-slate-400">Manage Family Dependents</label>
+                        <span id="dependents-count-tag" class="text-[11px] bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300 px-2 py-0.5 rounded-full font-medium">0 Dependents</span>
+                    </div>
+                    <div id="current-dependents-list" class="space-y-1 max-h-32 overflow-y-auto custom-scrollbar"></div>
+                </div>
+
+                <div class="flex justify-between items-center pt-3 border-t border-slate-200 dark:border-slate-700">
+                    <button type="button" onclick="removeMember(document.getElementById('edit-member-id').value)" class="text-rose-500 hover:text-rose-700 text-xs font-medium">Delete Member</button>
+                    <div class="flex gap-2">
+                        <button type="button" id="cancel-edit-member-btn" class="px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg">Cancel</button>
+                        <button type="submit" class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-medium shadow-sm">Save Changes</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- TAX SETTINGS MODAL -->
+    <div id="tax-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700 space-y-4">
+            <div class="flex justify-between items-center border-b border-slate-200 dark:border-slate-700 pb-3">
+                <h3 class="text-base font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                    <i class="fa-solid fa-sliders text-emerald-500"></i> Adjustable Tax & Service Charges
+                </h3>
+                <button id="close-tax-modal-btn" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                    <i class="fa-solid fa-xmark text-base"></i>
+                </button>
+            </div>
+
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Global Service Charge (%)</label>
+                    <input type="number" id="global-service-rate" step="0.5" min="0" max="30" class="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500">
+                </div>
+
+                <div class="space-y-2">
+                    <label class="block text-xs font-medium text-slate-500 dark:text-slate-400">Item Tax Tiers (SST / Alcohol Tax)</label>
+                    <div id="tax-tiers-list" class="space-y-1.5 max-h-36 overflow-y-auto custom-scrollbar"></div>
+
+                    <div class="flex gap-2 pt-1">
+                        <input type="text" id="new-tier-name" placeholder="Tier Name (e.g. SST)" class="flex-1 px-3 py-1.5 text-xs border border-slate-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg outline-none">
+                        <input type="number" id="new-tier-rate" placeholder="Rate %" step="0.5" class="w-20 px-3 py-1.5 text-xs border border-slate-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg outline-none">
+                        <button type="button" id="add-tier-btn" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-medium">+ Add Tier</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex justify-end border-t border-slate-200 dark:border-slate-700 pt-3">
+                <button type="button" id="save-tax-settings-btn" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-medium">Save Tax Settings</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- WHATSAPP EXPORT MODAL -->
+    <div id="whatsapp-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700 space-y-4">
+            <div class="flex justify-between items-center border-b border-slate-200 dark:border-slate-700 pb-3">
+                <h3 class="text-base font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                    <i class="fa-brands fa-whatsapp text-emerald-500"></i> WhatsApp Summary
+                </h3>
+                <button id="close-whatsapp-modal-btn" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                    <i class="fa-solid fa-xmark text-base"></i>
+                </button>
+            </div>
+
+            <textarea id="whatsapp-text-area" rows="10" readonly class="w-full p-3 font-mono text-xs border border-slate-300 dark:border-slate-600 dark:bg-slate-900 rounded-xl outline-none custom-scrollbar"></textarea>
+
+            <div class="flex justify-end gap-2 border-t border-slate-200 dark:border-slate-700 pt-3">
+                <button type="button" id="copy-summary-btn" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-medium flex items-center gap-1.5">
+                    <i class="fa-regular fa-copy"></i> Copy to Clipboard
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- EDIT ITEM MODAL -->
+    <div id="edit-item-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700 space-y-4">
+            <div class="flex justify-between items-center border-b border-slate-200 dark:border-slate-700 pb-3">
+                <h3 class="text-base font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                    <i class="fa-solid fa-utensils text-emerald-500"></i> Edit Dish / Drink
+                </h3>
+                <button id="close-edit-item-btn" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                    <i class="fa-solid fa-xmark text-base"></i>
+                </button>
+            </div>
+
+            <form id="edit-item-form" class="space-y-4">
+                <input type="hidden" id="edit-item-id">
+                
+                <div>
+                    <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Item Name</label>
+                    <input type="text" id="edit-item-name" required
+                        class="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500">
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Price (RM)</label>
+                        <input type="number" id="edit-item-price" step="0.01" min="0" required
+                            class="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Tax Tier</label>
+                        <select id="edit-item-tax-tier" class="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500">
+                            <!-- Populated dynamically -->
+                        </select>
+                    </div>
+                </div>
+
+                <div class="space-y-1.5">
+                    <label class="block text-xs font-medium text-slate-500 dark:text-slate-400">Eaten / Consumed By:</label>
+                    <div id="edit-item-members-checkboxes" class="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto custom-scrollbar p-1 border border-slate-200 dark:border-slate-700 rounded-xl">
+                        <!-- Dynamic member checkboxes -->
+                    </div>
+                </div>
+
+                <div class="flex justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-700">
+                    <button type="button" id="cancel-edit-item-btn" class="px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg">Cancel</button>
+                    <button type="submit" class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-medium shadow-sm">Save Item Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- OCR RECEIPT SCANNER MODAL -->
+    <div id="ocr-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-xl w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700 space-y-4">
+            <div class="flex justify-between items-center border-b border-slate-200 dark:border-slate-700 pb-3">
+                <h3 class="text-base font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                    <i class="fa-solid fa-receipt text-teal-500"></i> Scan Receipt (OCR)
+                </h3>
+                <button id="close-ocr-modal-btn" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                    <i class="fa-solid fa-xmark text-base"></i>
+                </button>
+            </div>
+
+            <p class="text-xs text-slate-500 dark:text-slate-400">
+                Upload or snap a picture of your receipt to automatically extract dish names and prices.
+            </p>
+
+            <!-- File Upload Box -->
+            <div class="border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl p-6 text-center hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors cursor-pointer relative" id="drop-zone">
+                <input type="file" id="ocr-file-input" accept="image/*" class="absolute inset-0 opacity-0 cursor-pointer">
+                <i class="fa-solid fa-cloud-arrow-up text-3xl text-slate-400 mb-2"></i>
+                <p class="text-xs font-semibold text-slate-700 dark:text-slate-200">Click or drag receipt photo here</p>
+                <p class="text-[11px] text-slate-400 mt-1">PNG, JPG, JPEG up to 10MB</p>
+            </div>
+
+            <!-- Image Preview & Status -->
+            <div id="ocr-status-box" class="hidden space-y-2">
+                <div class="flex items-center justify-between text-xs font-medium">
+                    <span id="ocr-status-text" class="text-slate-600 dark:text-slate-300">Processing image...</span>
+                    <span id="ocr-progress-percent" class="text-teal-600 dark:text-teal-400 font-bold">0%</span>
+                </div>
+                <div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-1.5 overflow-hidden">
+                    <div id="ocr-progress-bar" class="bg-teal-500 h-1.5 transition-all duration-200" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <!-- Detected Items Result List -->
+            <div id="ocr-results-container" class="hidden space-y-2 max-h-48 overflow-y-auto custom-scrollbar">
+                <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Detected Items</div>
+                <div id="ocr-items-list" class="space-y-1">
+                    <!-- Dynamic OCR items -->
+                </div>
+            </div>
+
+            <div class="flex justify-between items-center pt-3 border-t border-slate-200 dark:border-slate-700">
+                <button type="button" id="close-ocr-btn" class="px-3 py-1.5 text-xs text-slate-500 hover:text-slate-700">Close</button>
+                <button type="button" id="import-ocr-items-btn" disabled class="px-4 py-2 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white rounded-lg text-xs font-medium shadow-sm flex items-center gap-1.5">
+                    <i class="fa-solid fa-file-import"></i> Add Selected Items to Bill
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOAST NOTIFICATION -->
+    <div id="toast" class="fixed bottom-5 right-5 z-50 transform translate-y-20 opacity-0 transition-all duration-300 bg-slate-800 text-white px-4 py-3 rounded-xl shadow-xl flex items-center gap-3 text-sm">
+        <i id="toast-icon" class="fa-solid fa-circle-check text-emerald-400"></i>
+        <span id="toast-message">Action completed successfully</span>
+    </div>
+
+    <!-- Application Logic Script -->
+    <script>
+        // --- INITIAL DEFAULT DATA (Matching User's Scenario) ---
+        const DEFAULT_STATE = {
+            members: [
+                { id: 'm1', name: 'A1', role: 'primary', parentId: null },
+                { id: 'm2', name: 'A2', role: 'dependent', parentId: 'm1' },
+                { id: 'm3', name: 'A3', role: 'dependent', parentId: 'm1' },
+                { id: 'm4', name: 'B1', role: 'primary', parentId: null },
+                { id: 'm5', name: 'B2', role: 'dependent', parentId: 'm4' },
+                { id: 'm6', name: 'C1', role: 'primary', parentId: null },
+                { id: 'm7', name: 'D1', role: 'standalone', parentId: null },
+                { id: 'm8', name: 'D2', role: 'standalone', parentId: null },
+            ],
+            taxTiers: [
+                { id: 't0', name: 'Tax Free (0%)', rate: 0 },
+                { id: 't1', name: 'Standard SST (6%)', rate: 6 },
+                { id: 't2', name: 'Alcohol Tax (10%)', rate: 10 },
+            ],
+            serviceChargeRate: 10, // 10% Service Charge default
+            items: [
+                { id: 'i1', name: 'Roti Canai', price: 4.00, taxTierId: 't1', assignedMemberIds: ['m1'] },
+                { id: 'i2', name: 'Capati', price: 4.00, taxTierId: 't1', assignedMemberIds: ['m2'] },
+                { id: 'i3', name: 'Milo', price: 6.00, taxTierId: 't1', assignedMemberIds: ['m3'] },
+                { id: 'i4', name: 'Bread', price: 3.00, taxTierId: 't1', assignedMemberIds: ['m4'] },
+                { id: 'i5', name: 'Nasi', price: 19.00, taxTierId: 't1', assignedMemberIds: ['m5'] },
+                { id: 'i6', name: 'Noodles', price: 5.00, taxTierId: 't1', assignedMemberIds: ['m6'] },
+                { id: 'i7', name: 'Mee Soup', price: 6.00, taxTierId: 't1', assignedMemberIds: ['m7'] },
+                { id: 'i8', name: 'Curry Chicken', price: 19.00, taxTierId: 't1', assignedMemberIds: ['m8'] },
+            ],
+            coverageRules: {
+                'm7': { mode: 'split_even', coveredByPrimaryIds: ['m1', 'm4', 'm6'] },
+                'm8': { mode: 'single', singlePrimaryId: 'm1' }
+            }
+        };
+
+        let state = JSON.parse(JSON.stringify(DEFAULT_STATE));
+
+        const FAMILY_COLORS = [
+            { bg: 'bg-indigo-100 dark:bg-indigo-950/60', text: 'text-indigo-700 dark:text-indigo-300', border: 'border-indigo-200 dark:border-indigo-800' },
+            { bg: 'bg-emerald-100 dark:bg-emerald-950/60', text: 'text-emerald-700 dark:text-emerald-300', border: 'border-emerald-200 dark:border-emerald-800' },
+            { bg: 'bg-amber-100 dark:bg-amber-950/60', text: 'text-amber-700 dark:text-amber-300', border: 'border-amber-200 dark:border-amber-800' },
+            { bg: 'bg-rose-100 dark:bg-rose-950/60', text: 'text-rose-700 dark:text-rose-300', border: 'border-rose-200 dark:border-rose-800' },
+            { bg: 'bg-cyan-100 dark:bg-cyan-950/60', text: 'text-cyan-700 dark:text-cyan-300', border: 'border-cyan-200 dark:border-cyan-800' },
+            { bg: 'bg-purple-100 dark:bg-purple-950/60', text: 'text-purple-700 dark:text-purple-300', border: 'border-purple-200 dark:border-purple-800' },
+        ];
+
+        let elements = {};
+        let detectedOcrItems = [];
+
+        window.addEventListener('DOMContentLoaded', () => {
+            elements = {
+                recalculateBtn: document.getElementById('recalculate-btn'),
+                reconcilePayersSum: document.getElementById('reconcile-payers-sum'),
+                reconcileGrandTotal: document.getElementById('reconcile-grand-total'),
+                reconcileDifference: document.getElementById('reconcile-difference'),
+                matchingStatusBadge: document.getElementById('matching-status-badge'),
+
+                editItemModal: document.getElementById('edit-item-modal'),
+                closeEditItemBtn: document.getElementById('close-edit-item-btn'),
+                cancelEditItemBtn: document.getElementById('cancel-edit-item-btn'),
+                editItemForm: document.getElementById('edit-item-form'),
+                editItemId: document.getElementById('edit-item-id'),
+                editItemName: document.getElementById('edit-item-name'),
+                editItemPrice: document.getElementById('edit-item-price'),
+                editItemTaxTier: document.getElementById('edit-item-tax-tier'),
+                editItemMembersCheckboxes: document.getElementById('edit-item-members-checkboxes'),
+
+                newMemberName: document.getElementById('new-member-name'),
+                newMemberRole: document.getElementById('new-member-role'),
+                newMemberParent: document.getElementById('new-member-parent'),
+                primaryPayersList: document.getElementById('primary-payers-list'),
+                standaloneMembersList: document.getElementById('standalone-members-list'),
+                memberCountBadge: document.getElementById('member-count-badge'),
+                
+                addItemForm: document.getElementById('add-item-form'),
+                itemName: document.getElementById('item-name'),
+                itemPrice: document.getElementById('item-price'),
+                itemTaxTier: document.getElementById('item-tax-tier'),
+                itemMembersCheckboxes: document.getElementById('item-members-checkboxes'),
+                itemsTableBody: document.getElementById('items-table-body'),
+                
+                coverageRulesContainer: document.getElementById('coverage-rules-container'),
+                breakdownCardsList: document.getElementById('breakdown-cards-list'),
+
+                grandTotalAmount: document.getElementById('grand-total-amount'),
+                summarySubtotal: document.getElementById('summary-subtotal'),
+                summarySvc: document.getElementById('summary-svc'),
+                summarySst: document.getElementById('summary-sst'),
+
+                taxModal: document.getElementById('tax-modal'),
+                openTaxModalBtn: document.getElementById('open-tax-modal-btn'),
+                closeTaxModalBtn: document.getElementById('close-tax-modal-btn'),
+                globalServiceRate: document.getElementById('global-service-rate'),
+                taxTiersList: document.getElementById('tax-tiers-list'),
+                newTierName: document.getElementById('new-tier-name'),
+                newTierRate: document.getElementById('new-tier-rate'),
+                addTierBtn: document.getElementById('add-tier-btn'),
+                saveTaxSettingsBtn: document.getElementById('save-tax-settings-btn'),
+
+                whatsappModal: document.getElementById('whatsapp-modal'),
+                exportWhatsappBtn: document.getElementById('export-whatsapp-btn'),
+                closeWhatsappModalBtn: document.getElementById('close-whatsapp-modal-btn'),
+                whatsappTextArea: document.getElementById('whatsapp-text-area'),
+                copySummaryBtn: document.getElementById('copy-summary-btn'),
+                resetDefaultBtn: document.getElementById('reset-default-btn'),
+                darkModeToggle: document.getElementById('dark-mode-toggle'),
+
+                editMemberModal: document.getElementById('edit-member-modal'),
+                closeEditMemberBtn: document.getElementById('close-edit-member-btn'),
+                cancelEditMemberBtn: document.getElementById('cancel-edit-member-btn'),
+                editMemberForm: document.getElementById('edit-member-form'),
+                editMemberId: document.getElementById('edit-member-id'),
+                editMemberName: document.getElementById('edit-member-name'),
+                editMemberRole: document.getElementById('edit-member-role'),
+                editMemberParent: document.getElementById('edit-member-parent'),
+                editParentContainer: document.getElementById('edit-parent-container'),
+                manageDependentsSection: document.getElementById('manage-dependents-section'),
+                dependentsCountTag: document.getElementById('dependents-count-tag'),
+                quickAddDepName: document.getElementById('quick-add-dep-name'),
+                quickAddDepBtn: document.getElementById('quick-add-dep-btn'),
+                currentDependentsList: document.getElementById('current-dependents-list'),
+
+                ocrModal: document.getElementById('ocr-modal'),
+                openOcrModalBtn: document.getElementById('open-ocr-modal-btn'),
+                closeOcrModalBtn: document.getElementById('close-ocr-modal-btn'),
+                closeOcrBtn: document.getElementById('close-ocr-btn'),
+                ocrFileInput: document.getElementById('ocr-file-input'),
+                ocrStatusBox: document.getElementById('ocr-status-box'),
+                ocrStatusText: document.getElementById('ocr-status-text'),
+                ocrProgressPercent: document.getElementById('ocr-progress-percent'),
+                ocrProgressBar: document.getElementById('ocr-progress-bar'),
+                ocrResultsContainer: document.getElementById('ocr-results-container'),
+                ocrItemsList: document.getElementById('ocr-items-list'),
+                importOcrItemsBtn: document.getElementById('import-ocr-items-btn'),
+                toast: document.getElementById('toast'),
+            };
+
+            initEvents();
+            renderAll();
+        });
+
+        function initEvents() {
+            elements.closeEditMemberBtn?.addEventListener('click', () => elements.editMemberModal?.classList.add('hidden'));
+            elements.cancelEditMemberBtn?.addEventListener('click', () => elements.editMemberModal?.classList.add('hidden'));
+
+            elements.editMemberForm?.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const id = elements.editMemberId.value;
+                const name = elements.editMemberName.value.trim();
+                const role = elements.editMemberRole.value;
+                const parentId = role === 'dependent' ? elements.editMemberParent.value : null;
+
+                const member = state.members.find(m => m.id === id);
+                if (member) {
+                    member.name = name;
+                    member.role = role;
+                    member.parentId = parentId;
+                    showToast(`Updated member ${name}`);
+                    elements.editMemberModal.classList.add('hidden');
+                    renderAll();
+                }
+            });
+
+            elements.editMemberRole?.addEventListener('change', (e) => {
+                if (e.target.value === 'dependent') {
+                    elements.editParentContainer.classList.remove('hidden');
+                } else {
+                    elements.editParentContainer.classList.add('hidden');
+                }
+            });
+
+            // Recalculate button trigger
+            elements.recalculateBtn?.addEventListener('click', () => {
+                calculateAndRenderBreakdown();
+                showToast('Calculation updated!');
+            });
+
+            // Edit Item Modal Events
+            elements.closeEditItemBtn?.addEventListener('click', () => elements.editItemModal?.classList.add('hidden'));
+            elements.cancelEditItemBtn?.addEventListener('click', () => elements.editItemModal?.classList.add('hidden'));
+
+            elements.editItemForm?.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const id = elements.editItemId.value;
+                const name = elements.editItemName.value.trim();
+                const price = parseFloat(elements.editItemPrice.value);
+                const taxTierId = elements.editItemTaxTier.value;
+
+                const checkedBoxes = document.querySelectorAll('.edit-item-member-cb:checked');
+                const assignedMemberIds = Array.from(checkedBoxes).map(cb => cb.value);
+
+                if (!name || isNaN(price) || price <= 0) {
+                    showToast('Please enter a valid item name and price', true);
+                    return;
+                }
+                if (assignedMemberIds.length === 0) {
+                    showToast('Please assign this item to at least one member', true);
+                    return;
+                }
+
+                const item = state.items.find(i => i.id === id);
+                if (item) {
+                    item.name = name;
+                    item.price = price;
+                    item.taxTierId = taxTierId;
+                    item.assignedMemberIds = assignedMemberIds;
+
+                    showToast(`Updated item ${name}`);
+                    elements.editItemModal.classList.add('hidden');
+                    renderAll();
+                }
+            });
+
+            elements.openOcrModalBtn?.addEventListener('click', () => {
+                elements.ocrStatusBox.classList.add('hidden');
+                elements.ocrResultsContainer.classList.add('hidden');
+                elements.importOcrItemsBtn.disabled = true;
+                detectedOcrItems = [];
+                elements.ocrModal.classList.remove('hidden');
+            });
+            elements.closeOcrModalBtn?.addEventListener('click', () => elements.ocrModal?.classList.add('hidden'));
+            elements.closeOcrBtn?.addEventListener('click', () => elements.ocrModal?.classList.add('hidden'));
+
+            elements.ocrFileInput?.addEventListener('change', handleOcrFileUpload);
+
+            elements.importOcrItemsBtn?.addEventListener('click', () => {
+                const selectedCheckboxes = document.querySelectorAll('.ocr-item-cb:checked');
+                let count = 0;
+                const defaultPrimary = state.members.find(m => m.role === 'primary') || state.members[0];
+                const defaultMemberId = defaultPrimary ? defaultPrimary.id : null;
+                const defaultTaxTier = state.taxTiers[0] ? state.taxTiers[0].id : null;
+
+                selectedCheckboxes.forEach(cb => {
+                    const idx = parseInt(cb.value);
+                    const item = detectedOcrItems[idx];
+                    if (item) {
+                        state.items.push({
+                            id: 'i_' + Date.now() + Math.random(),
+                            name: item.name,
+                            price: item.price,
+                            taxTierId: defaultTaxTier,
+                            assignedMemberIds: defaultMemberId ? [defaultMemberId] : []
+                        });
+                        count++;
+                    }
+                });
+
+                if (count > 0) {
+                    showToast(`Imported ${count} items from receipt`);
+                    elements.ocrModal.classList.add('hidden');
+                    renderAll();
+                }
+            });
+
+            elements.newMemberRole?.addEventListener('change', (e) => {
+                if (e.target.value === 'dependent') {
+                    elements.newMemberParent.classList.remove('hidden');
+                } else {
+                    elements.newMemberParent.classList.add('hidden');
+                }
+            });
+
+            elements.addMemberForm?.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const name = elements.newMemberName.value.trim();
+                const role = elements.newMemberRole.value;
+                const parentId = role === 'dependent' ? elements.newMemberParent.value : null;
+
+                if (!name) return;
+
+                const memberRole = role === 'dependent' ? 'dependent' : (role === 'primary' ? 'primary' : 'standalone');
+                const newMember = {
+                    id: 'm_' + Date.now(),
+                    name,
+                    role: memberRole,
+                    parentId: parentId
+                };
+
+                state.members.push(newMember);
+
+                if (memberRole === 'standalone') {
+                    const primaries = state.members.filter(m => m.role === 'primary').map(m => m.id);
+                    state.coverageRules[newMember.id] = {
+                        mode: 'split_even',
+                        coveredByPrimaryIds: primaries.length ? [...primaries] : []
+                    };
+                }
+
+                elements.newMemberName.value = '';
+                showToast(`Added ${name}`);
+                renderAll();
+            });
+
+            // Global Service Charge Input
+            elements.globalServiceRate?.addEventListener('input', (e) => {
+                const val = parseFloat(e.target.value);
+                state.serviceChargeRate = isNaN(val) ? 0 : val;
+                calculateAndRenderBreakdown();
+            });
+
+            // Add Tax Tier
+            elements.addTierBtn?.addEventListener('click', () => {
+                const name = elements.newTierName.value.trim();
+                const rate = parseFloat(elements.newTierRate.value);
+
+                if (!name || isNaN(rate) || rate < 0) {
+                    showToast('Please enter valid tax tier name and rate', true);
+                    return;
+                }
+
+                state.taxTiers.push({
+                    id: 't_' + Date.now(),
+                    name: `${name} (${rate}%)`,
+                    rate: rate
+                });
+
+                elements.newTierName.value = '';
+                elements.newTierRate.value = '';
+                renderTaxModalTiers();
+                renderTaxDropdowns();
+                showToast(`Added ${name} tax tier`);
+            });
+
+            // Tax Settings Modal Open/Close
+            elements.openTaxModalBtn?.addEventListener('click', () => {
+                elements.globalServiceRate.value = state.serviceChargeRate;
+                renderTaxModalTiers();
+                elements.taxModal.classList.remove('hidden');
+            });
+            elements.closeTaxModalBtn?.addEventListener('click', () => elements.taxModal?.classList.add('hidden'));
+            elements.saveTaxSettingsBtn?.addEventListener('click', () => {
+                const val = parseFloat(elements.globalServiceRate.value);
+                state.serviceChargeRate = isNaN(val) ? 0 : val;
+                elements.taxModal.classList.add('hidden');
+                renderAll();
+                showToast('Tax settings saved!');
+            });
+
+            // Add Item Submit
+            elements.addItemForm?.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const name = elements.itemName.value.trim();
+                const price = parseFloat(elements.itemPrice.value);
+                const taxTierId = elements.itemTaxTier.value;
+
+                const checkedBoxes = document.querySelectorAll('.item-member-cb:checked');
+                const assignedMemberIds = Array.from(checkedBoxes).map(cb => cb.value);
+
+                if (!name || isNaN(price) || price <= 0) {
+                    showToast('Please enter a valid item name and price', true);
+                    return;
+                }
+                if (assignedMemberIds.length === 0) {
+                    showToast('Please assign this item to at least one member', true);
+                    return;
+                }
+
+                state.items.push({
+                    id: 'i_' + Date.now(),
+                    name,
+                    price,
+                    taxTierId,
+                    assignedMemberIds
+                });
+
+                elements.itemName.value = '';
+                elements.itemPrice.value = '';
+                showToast(`Added ${name}`);
+                renderAll();
+            });
+
+            // WhatsApp Export Modal
+            elements.exportWhatsappBtn?.addEventListener('click', () => {
+                elements.whatsappTextArea.value = generateWhatsAppText();
+                elements.whatsappModal.classList.remove('hidden');
+            });
+            elements.closeWhatsappModalBtn?.addEventListener('click', () => elements.whatsappModal?.classList.add('hidden'));
+            elements.copySummaryBtn?.addEventListener('click', () => {
+                elements.whatsappTextArea.select();
+                document.execCommand('copy');
+                showToast('Summary copied to clipboard!');
+            });
+
+            // Reset Default State
+            elements.resetDefaultBtn?.addEventListener('click', () => {
+                state = JSON.parse(JSON.stringify(DEFAULT_STATE));
+                renderAll();
+                showToast('Reset to default scenario');
+            });
+
+            // Dark Mode Toggle
+            elements.darkModeToggle?.addEventListener('click', () => {
+                document.documentElement.classList.toggle('dark');
+            });
+        }
+
+        // --- OCR RECEIPT SCANNING FUNCTIONS ---
+        function handleOcrFileUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            elements.ocrStatusBox.classList.remove('hidden');
+            elements.ocrResultsContainer.classList.add('hidden');
+            elements.ocrStatusText.textContent = 'Initializing engine...';
+            elements.ocrProgressPercent.textContent = '0%';
+            elements.ocrProgressBar.style.width = '0%';
+
+            if (typeof Tesseract === 'undefined') {
+                showToast('Tesseract.js OCR library failed to load', true);
+                elements.ocrStatusText.textContent = 'OCR Engine unavailable';
+                return;
+            }
+
+            Tesseract.recognize(
+                file,
+                'eng',
+                {
+                    logger: m => {
+                        if (m.status === 'recognizing text') {
+                            const pct = Math.round((m.progress || 0) * 100);
+                            elements.ocrStatusText.textContent = 'Extracting items & prices...';
+                            elements.ocrProgressPercent.textContent = `${pct}%`;
+                            elements.ocrProgressBar.style.width = `${pct}%`;
+                        }
+                    }
+                }
+            ).then(({ data: { text } }) => {
+                elements.ocrStatusText.textContent = 'Scanning complete!';
+                parseOcrText(text);
+            }).catch(err => {
+                console.error(err);
+                elements.ocrStatusText.textContent = 'Error processing image.';
+                showToast('Failed to scan receipt image', true);
+            });
+        }
+
+        function parseOcrText(rawText) {
+            const lines = rawText.split('\n');
+            detectedOcrItems = [];
+
+            lines.forEach(line => {
+                const cleanLine = line.trim();
+                if (!cleanLine) return;
+
+                // Match price pattern like RM 19.00 or 19.00 or RM19.00 at the end of line
+                const match = cleanLine.match(/(.*?)(?:RM\s*)?(\d+[\.,]\d{2})\s*$/i);
+                if (match) {
+                    let itemName = match[1].replace(/^[\d\.\*\-\s]+/, '').trim();
+                    let priceVal = parseFloat(match[2].replace(',', '.'));
+
+                    if (itemName && !isNaN(priceVal) && priceVal > 0 && itemName.length > 2) {
+                        detectedOcrItems.push({
+                            name: itemName,
+                            price: priceVal
+                        });
+                    }
+                }
+            });
+
+            if (detectedOcrItems.length === 0) {
+                elements.ocrItemsList.innerHTML = `<p class="text-xs text-slate-400 py-2">No itemized prices found. Try a clearer image.</p>`;
+                elements.importOcrItemsBtn.disabled = true;
+            } else {
+                elements.ocrItemsList.innerHTML = detectedOcrItems.map((item, idx) => `
+                    <label class="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-slate-700/50 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors cursor-pointer text-xs">
+                        <div class="flex items-center gap-2">
+                            <input type="checkbox" value="${idx}" checked class="ocr-item-cb rounded text-teal-600 focus:ring-teal-500">
+                            <span class="font-medium text-slate-700 dark:text-slate-200">${item.name}</span>
+                        </div>
+                        <span class="font-bold text-slate-800 dark:text-slate-100">RM ${item.price.toFixed(2)}</span>
+                    </label>
+                `).join('');
+                elements.importOcrItemsBtn.disabled = false;
+            }
+
+            elements.ocrResultsContainer.classList.remove('hidden');
+        }
+
+        // --- RENDER HELPERS ---
+        function getFamilyColor(index) {
+            return FAMILY_COLORS[index % FAMILY_COLORS.length];
+        }
+
+        function openEditItemModal(itemId) {
+            const item = state.items.find(i => i.id === itemId);
+            if (!item) return;
+
+            elements.editItemId.value = item.id;
+            elements.editItemName.value = item.name;
+            elements.editItemPrice.value = item.price;
+
+            elements.editItemTaxTier.innerHTML = state.taxTiers.map(t => 
+                `<option value="${t.id}" ${t.id === item.taxTierId ? 'selected' : ''}>${t.name}</option>`
+            ).join('');
+
+            elements.editItemMembersCheckboxes.innerHTML = state.members.map(m => {
+                const isChecked = item.assignedMemberIds.includes(m.id);
+                return `
+                    <label class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-700 text-xs font-medium cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
+                        <input type="checkbox" value="${m.id}" ${isChecked ? 'checked' : ''} class="edit-item-member-cb rounded text-emerald-600 focus:ring-emerald-500">
+                        <span>${m.name}</span>
+                    </label>
+                `;
+            }).join('');
+
+            elements.editItemModal.classList.remove('hidden');
+        }
+
+        function openEditMemberModal(memberId) {
+            const member = state.members.find(m => m.id === memberId);
+            if (!member) return;
+
+            elements.editMemberId.value = member.id;
+            elements.editMemberName.value = member.name;
+            elements.editMemberRole.value = member.role;
+
+            const primaryPayers = state.members.filter(m => m.role === 'primary' && m.id !== member.id);
+            elements.editMemberParent.innerHTML = primaryPayers.map(p => 
+                `<option value="${p.id}" ${p.id === member.parentId ? 'selected' : ''}>${p.name}</option>`
+            ).join('');
+
+            if (member.role === 'dependent') {
+                elements.editParentContainer.classList.remove('hidden');
+            } else {
+                elements.editParentContainer.classList.add('hidden');
+            }
+
+            if (member.role === 'primary') {
+                elements.manageDependentsSection.classList.remove('hidden');
+                const dependents = state.members.filter(m => m.parentId === member.id);
+                elements.dependentsCountTag.textContent = `${dependents.length} Dependents`;
+
+                elements.currentDependentsList.innerHTML = dependents.map(d => `
+                    <div class="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-700/50 rounded-lg text-xs">
+                        <span class="font-medium text-slate-700 dark:text-slate-200">${d.name}</span>
+                        <div class="flex items-center gap-1">
+                            <button type="button" onclick="detachDependent('${d.id}')" class="px-2 py-0.5 text-[11px] bg-slate-200 dark:bg-slate-600 hover:bg-slate-300 rounded text-slate-600 dark:text-slate-200">
+                                Make Guest
+                            </button>
+                            <button type="button" onclick="removeMember('${d.id}')" class="p-1 text-rose-500 hover:text-rose-700">
+                                <i class="fa-solid fa-trash-can text-xs"></i>
+                            </button>
+                        </div>
+                    </div>
+                `).join('') || `<p class="text-xs text-slate-400 py-1">No dependents assigned.</p>`;
+            } else {
+                elements.manageDependentsSection.classList.add('hidden');
+            }
+
+            elements.editMemberModal.classList.remove('hidden');
+        }
+
+        function detachDependent(depId) {
+            const dep = state.members.find(m => m.id === depId);
+            if (dep) {
+                dep.role = 'standalone';
+                dep.parentId = null;
+                const primaries = state.members.filter(m => m.role === 'primary').map(m => m.id);
+                state.coverageRules[dep.id] = {
+                    mode: 'split_even',
+                    coveredByPrimaryIds: primaries
+                };
+                showToast(`Converted ${dep.name} to Guest`);
+                openEditMemberModal(elements.editMemberId.value);
+                renderAll();
+            }
+        }
+
+        function removeMember(memberId) {
+            state.members = state.members.filter(m => m.id !== memberId);
+            // Remove member from items assignment
+            state.items.forEach(item => {
+                item.assignedMemberIds = item.assignedMemberIds.filter(id => id !== memberId);
+            });
+            delete state.coverageRules[memberId];
+
+            showToast('Member removed');
+            elements.editMemberModal.classList.add('hidden');
+            renderAll();
+        }
+
+        function removeItem(itemId) {
+            state.items = state.items.filter(i => i.id !== itemId);
+            showToast('Item removed');
+            renderAll();
+        }
+
+        function renderAll() {
+            renderMembers();
+            renderTaxDropdowns();
+            renderItemMembersCheckboxes();
+            renderItemsTable();
+            renderCoverageRules();
+            calculateAndRenderBreakdown();
+        }
+
+        function renderMembers() {
+            elements.memberCountBadge.textContent = `${state.members.length} Members`;
+
+            const primaries = state.members.filter(m => m.role === 'primary');
+            const standalone = state.members.filter(m => m.role === 'standalone');
+
+            elements.primaryPayersList.innerHTML = primaries.map((p, idx) => {
+                const color = getFamilyColor(idx);
+                const dependents = state.members.filter(m => m.parentId === p.id);
+                const depString = dependents.length ? ` (+${dependents.map(d => d.name).join(', ')})` : '';
+
+                return `
+                    <div class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border ${color.bg} ${color.text} ${color.border} text-xs font-semibold">
+                        <span>${p.name}${depString}</span>
+                        <button onclick="openEditMemberModal('${p.id}')" class="hover:opacity-75 ml-1">
+                            <i class="fa-solid fa-pen text-[10px]"></i>
+                        </button>
+                    </div>
+                `;
+            }).join('') || `<span class="text-xs text-slate-400">No primary payers. Add one above.</span>`;
+
+            elements.standaloneMembersList.innerHTML = standalone.map(s => `
+                <div class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-700/60 text-slate-700 dark:text-slate-200 text-xs font-medium">
+                    <span>${s.name} (Guest)</span>
+                    <button onclick="openEditMemberModal('${s.id}')" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 ml-1">
+                        <i class="fa-solid fa-pen text-[10px]"></i>
+                    </button>
+                </div>
+            `).join('') || `<span class="text-xs text-slate-400">No standalone guests.</span>`;
+
+            // Update parent dropdown for adding new dependents
+            elements.newMemberParent.innerHTML = primaries.map(p => 
+                `<option value="${p.id}">${p.name}</option>`
+            ).join('');
+        }
+
+        function renderTaxDropdowns() {
+            elements.itemTaxTier.innerHTML = state.taxTiers.map(t => 
+                `<option value="${t.id}">${t.name}</option>`
+            ).join('');
+        }
+
+        function renderTaxModalTiers() {
+            elements.taxTiersList.innerHTML = state.taxTiers.map(tier => `
+                <div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-slate-700/40 border border-slate-200 dark:border-slate-700 text-xs">
+                    <div>
+                        <span class="font-semibold text-slate-800 dark:text-slate-100">${tier.name}</span>
+                        <span class="text-slate-400 ml-2">Rate: ${tier.rate}%</span>
+                    </div>
+                    ${state.taxTiers.length > 1 ? `
+                        <button onclick="removeTaxTier('${tier.id}')" class="text-rose-500 hover:text-rose-700 text-xs">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    ` : ''}
+                </div>
+            `).join('');
+        }
+
+        function removeTaxTier(tierId) {
+            if (state.taxTiers.length <= 1) return;
+            state.taxTiers = state.taxTiers.filter(t => t.id !== tierId);
+            const fallbackTierId = state.taxTiers[0].id;
+            state.items.forEach(i => {
+                if (i.taxTierId === tierId) i.taxTierId = fallbackTierId;
+            });
+            renderTaxModalTiers();
+            renderTaxDropdowns();
+            renderItemsTable();
+            calculateAndRenderBreakdown();
+        }
+
+        function renderItemMembersCheckboxes() {
+            elements.itemMembersCheckboxes.innerHTML = state.members.map(m => `
+                <label class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-700 text-xs font-medium cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
+                    <input type="checkbox" value="${m.id}" checked class="item-member-cb rounded text-emerald-600 focus:ring-emerald-500">
+                    <span>${m.name}</span>
+                </label>
+            `).join('');
+        }
+
+        function renderCoverageRules() {
+            const standaloneGuests = state.members.filter(m => m.role === 'standalone');
+            const primaries = state.members.filter(m => m.role === 'primary');
+
+            if (standaloneGuests.length === 0) {
+                elements.coverageRulesContainer.innerHTML = `
+                    <p class="text-xs text-slate-400 py-2">No standalone guests. All members are primary payers or family dependents.</p>
+                `;
+                return;
+            }
+
+            elements.coverageRulesContainer.innerHTML = standaloneGuests.map(guest => {
+                const rule = state.coverageRules[guest.id] || { mode: 'split_even', coveredByPrimaryIds: primaries.map(p => p.id) };
+                
+                return `
+                    <div class="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 space-y-2">
+                        <div class="flex items-center justify-between">
+                            <span class="font-bold text-xs text-slate-800 dark:text-slate-100">Covering rule for ${guest.name}:</span>
+                            <select onchange="updateCoverageMode('${guest.id}', this.value)" class="text-xs px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none">
+                                <option value="split_even" ${rule.mode === 'split_even' ? 'selected' : ''}>Split Among Selected Payers</option>
+                                <option value="single" ${rule.mode === 'single' ? 'selected' : ''}>Covered 100% by Single Primary</option>
+                            </select>
+                        </div>
+
+                        ${rule.mode === 'single' ? `
+                            <div class="flex items-center gap-2 pt-1 text-xs">
+                                <span class="text-slate-400">Assigned Primary:</span>
+                                <select onchange="updateSingleCoverage('${guest.id}', this.value)" class="flex-1 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none">
+                                    ${primaries.map(p => `
+                                        <option value="${p.id}" ${rule.singlePrimaryId === p.id ? 'selected' : ''}>${p.name}</option>
+                                    `).join('')}
+                                </select>
+                            </div>
+                        ` : `
+                            <div class="flex flex-wrap gap-1.5 pt-1">
+                                <span class="text-[11px] text-slate-400 self-center">Split across:</span>
+                                ${primaries.map(p => {
+                                    const isChecked = rule.coveredByPrimaryIds && rule.coveredByPrimaryIds.includes(p.id);
+                                    return `
+                                        <label class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[11px] font-medium cursor-pointer">
+                                            <input type="checkbox" ${isChecked ? 'checked' : ''} onchange="toggleCoveragePrimary('${guest.id}', '${p.id}', this.checked)" class="rounded text-emerald-600 focus:ring-emerald-500">
+                                            <span>${p.name}</span>
+                                        </label>
+                                    `;
+                                }).join('')}
+                            </div>
+                        `}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function updateCoverageMode(guestId, mode) {
+            const primaries = state.members.filter(m => m.role === 'primary').map(m => m.id);
+            state.coverageRules[guestId] = {
+                mode,
+                singlePrimaryId: primaries[0] || null,
+                coveredByPrimaryIds: [...primaries]
+            };
+            renderCoverageRules();
+            calculateAndRenderBreakdown();
+        }
+
+        function updateSingleCoverage(guestId, primaryId) {
+            if (!state.coverageRules[guestId]) state.coverageRules[guestId] = {};
+            state.coverageRules[guestId].singlePrimaryId = primaryId;
+            calculateAndRenderBreakdown();
+        }
+
+        function toggleCoveragePrimary(guestId, primaryId, isChecked) {
+            if (!state.coverageRules[guestId]) {
+                state.coverageRules[guestId] = { mode: 'split_even', coveredByPrimaryIds: [] };
+            }
+            let list = state.coverageRules[guestId].coveredByPrimaryIds || [];
+            if (isChecked) {
+                if (!list.includes(primaryId)) list.push(primaryId);
+            } else {
+                list = list.filter(id => id !== primaryId);
+            }
+            state.coverageRules[guestId].coveredByPrimaryIds = list;
+            calculateAndRenderBreakdown();
+        }
+
+        // --- CALCULATION ENGINE ---
+        function calculateBreakdown() {
+            const memberTotals = {};
+            state.members.forEach(m => {
+                memberTotals[m.id] = { subtotal: 0, tax: 0 };
+            });
+
+            let overallRawSubtotal = 0;
+            let overallItemTaxTotal = 0;
+
+            // Calculate direct consumption per member
+            state.items.forEach(item => {
+                const taxTier = state.taxTiers.find(t => t.id === item.taxTierId) || { rate: 0 };
+                const consumerCount = item.assignedMemberIds.length;
+                if (consumerCount === 0) return;
+
+                const itemSubtotal = item.price;
+                const itemTax = itemSubtotal * (taxTier.rate / 100);
+
+                overallRawSubtotal += itemSubtotal;
+                overallItemTaxTotal += itemTax;
+
+                const shareSubtotal = itemSubtotal / consumerCount;
+                const shareTax = itemTax / consumerCount;
+
+                item.assignedMemberIds.forEach(mId => {
+                    if (memberTotals[mId]) {
+                        memberTotals[mId].subtotal += shareSubtotal;
+                        memberTotals[mId].tax += shareTax;
+                    }
+                });
+            });
+
+            const overallSvcTotal = overallRawSubtotal * (state.serviceChargeRate / 100);
+            const grandTotal = overallRawSubtotal + overallItemTaxTotal + overallSvcTotal;
+
+            // Aggregate totals to family primary heads
+            const primaryBreakdowns = {};
+            const primaryPayers = state.members.filter(m => m.role === 'primary');
+
+            primaryPayers.forEach(p => {
+                const dependents = state.members.filter(m => m.parentId === p.id);
+                const familyMemberIds = [p.id, ...dependents.map(d => d.id)];
+
+                let familySubtotal = 0;
+                let familyTax = 0;
+
+                familyMemberIds.forEach(id => {
+                    if (memberTotals[id]) {
+                        familySubtotal += memberTotals[id].subtotal;
+                        familyTax += memberTotals[id].tax;
+                    }
+                });
+
+                const familySvc = familySubtotal * (state.serviceChargeRate / 100);
+
+                primaryBreakdowns[p.id] = {
+                    primary: p,
+                    dependents,
+                    directSubtotal: familySubtotal,
+                    directTax: familyTax,
+                    directSvc: familySvc,
+                    directTotal: familySubtotal + familyTax + familySvc,
+                    sharedGuestShares: [],
+                    finalTotal: familySubtotal + familyTax + familySvc
+                };
+            });
+
+            // Allocate Standalone / Guest totals (D1 & D2 rules)
+            const standaloneGuests = state.members.filter(m => m.role === 'standalone');
+
+            standaloneGuests.forEach(guest => {
+                const guestSubtotal = memberTotals[guest.id] ? memberTotals[guest.id].subtotal : 0;
+                const guestTax = memberTotals[guest.id] ? memberTotals[guest.id].tax : 0;
+                const guestSvc = guestSubtotal * (state.serviceChargeRate / 100);
+                const guestTotalBill = guestSubtotal + guestTax + guestSvc;
+
+                if (guestTotalBill <= 0) return;
+
+                const rule = state.coverageRules[guest.id] || { mode: 'split_even', coveredByPrimaryIds: primaryPayers.map(p => p.id) };
+
+                if (rule.mode === 'single' && rule.singlePrimaryId && primaryBreakdowns[rule.singlePrimaryId]) {
+                    primaryBreakdowns[rule.singlePrimaryId].sharedGuestShares.push({
+                        guestName: guest.name,
+                        amount: guestTotalBill
+                    });
+                    primaryBreakdowns[rule.singlePrimaryId].finalTotal += guestTotalBill;
+                } else if (rule.mode === 'split_even') {
+                    const validPrimaryIds = (rule.coveredByPrimaryIds || []).filter(id => primaryBreakdowns[id]);
+                    if (validPrimaryIds.length > 0) {
+                        const splitAmount = guestTotalBill / validPrimaryIds.length;
+                        validPrimaryIds.forEach(pId => {
+                            primaryBreakdowns[pId].sharedGuestShares.push({
+                                guestName: guest.name,
+                                amount: splitAmount
+                            });
+                            primaryBreakdowns[pId].finalTotal += splitAmount;
+                        });
+                    }
+                }
+            });
+
+            return {
+                overallRawSubtotal,
+                overallItemTaxTotal,
+                overallSvcTotal,
+                grandTotal,
+                primaryBreakdowns
+            };
+        }
+
+        function renderItemsTable() {
+            if (state.items.length === 0) {
+                elements.itemsTableBody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="py-6 text-center text-xs text-slate-400">No items added yet. Fill in the form above to add dishes & drinks.</td>
+                    </tr>
+                `;
+                return;
+            }
+
+            elements.itemsTableBody.innerHTML = state.items.map(item => {
+                const taxTier = state.taxTiers.find(t => t.id === item.taxTierId) || { name: '0%', rate: 0 };
+                const assignedNames = item.assignedMemberIds.map(id => {
+                    const m = state.members.find(mem => mem.id === id);
+                    return m ? m.name : '?';
+                }).join(', ');
+
+                return `
+                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
+                        <td class="py-2.5 px-3 font-medium text-slate-800 dark:text-slate-100">${item.name}</td>
+                        <td class="py-2.5 px-3 text-slate-600 dark:text-slate-300">
+                            <span class="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-xs">
+                                ${assignedNames || 'Unassigned'}
+                            </span>
+                        </td>
+                        <td class="py-2.5 px-3 text-slate-500 dark:text-slate-400 text-xs">${taxTier.name}</td>
+                        <td class="py-2.5 px-3 text-right font-semibold text-slate-700 dark:text-slate-200">RM ${item.price.toFixed(2)}</td>
+                        <td class="py-2.5 px-3 text-center flex items-center justify-center gap-1">
+                            <button onclick="openEditItemModal('${item.id}')" class="text-teal-600 dark:text-teal-400 hover:text-teal-800 p-1" title="Edit Item & Consumers">
+                                <i class="fa-solid fa-pen-to-square text-xs"></i>
+                            </button>
+                            <button onclick="removeItem('${item.id}')" class="text-rose-500 hover:text-rose-700 p-1" title="Delete Item">
+                                <i class="fa-regular fa-trash-can text-xs"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function calculateAndRenderBreakdown() {
+            const result = calculateBreakdown();
+
+            elements.grandTotalAmount.textContent = `RM ${result.grandTotal.toFixed(2)}`;
+            elements.summarySubtotal.textContent = `RM ${result.overallRawSubtotal.toFixed(2)}`;
+            elements.summarySvc.textContent = `RM ${result.overallSvcTotal.toFixed(2)}`;
+            elements.summarySst.textContent = `RM ${result.overallItemTaxTotal.toFixed(2)}`;
+
+            // Total Sum Reconcile Calculation
+            const primaryList = Object.values(result.primaryBreakdowns);
+            const sumOfPayers = primaryList.reduce((acc, pb) => acc + pb.finalTotal, 0);
+            const diff = Math.abs(sumOfPayers - result.grandTotal);
+
+            elements.reconcilePayersSum.textContent = `RM ${sumOfPayers.toFixed(2)}`;
+            elements.reconcileGrandTotal.textContent = `RM ${result.grandTotal.toFixed(2)}`;
+            elements.reconcileDifference.textContent = `RM ${diff.toFixed(2)}`;
+
+            if (diff < 0.01) {
+                elements.matchingStatusBadge.className = 'px-2.5 py-0.5 text-xs font-medium rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950/80 dark:text-emerald-300 flex items-center gap-1';
+                elements.matchingStatusBadge.innerHTML = `<i class="fa-solid fa-check-circle"></i> 100% Matched`;
+                elements.reconcileDifference.className = 'font-bold text-emerald-600 dark:text-emerald-400';
+            } else {
+                elements.matchingStatusBadge.className = 'px-2.5 py-0.5 text-xs font-medium rounded-full bg-rose-100 text-rose-700 dark:bg-rose-950/80 dark:text-rose-300 flex items-center gap-1';
+                elements.matchingStatusBadge.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> Mismatch Detected`;
+                elements.reconcileDifference.className = 'font-bold text-rose-600 dark:text-rose-400';
+            }
+
+            if (primaryList.length === 0) {
+                elements.breakdownCardsList.innerHTML = `
+                    <div class="p-6 text-center text-xs text-slate-400 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700">
+                        No primary payers available to summarize.
+                    </div>
+                `;
+                return;
+            }
+
+            elements.breakdownCardsList.innerHTML = primaryList.map((pb, idx) => {
+                const color = getFamilyColor(idx);
+                const dependentNames = pb.dependents.map(d => d.name).join(', ');
+
+                return `
+                    <div class="bg-white dark:bg-slate-800 rounded-2xl p-5 shadow-sm border border-slate-200 dark:border-slate-700 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                                <span class="w-8 h-8 rounded-xl ${color.bg} ${color.text} flex items-center justify-center font-bold text-sm">
+                                    ${pb.primary.name.substring(0, 2)}
+                                </span>
+                                <div>
+                                    <h4 class="font-bold text-slate-800 dark:text-slate-100">${pb.primary.name} Total</h4>
+                                    ${dependentNames ? `<p class="text-xs text-slate-400">Covers: ${dependentNames}</p>` : ''}
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <span class="text-xl font-extrabold text-emerald-600 dark:text-emerald-400">RM ${pb.finalTotal.toFixed(2)}</span>
+                            </div>
+                        </div>
+
+                        <div class="space-y-1.5 pt-2 border-t border-slate-100 dark:border-slate-700/60 text-xs text-slate-600 dark:text-slate-300">
+                            <div class="flex justify-between">
+                                <span>Food & Drinks Subtotal</span>
+                                <span>RM ${pb.directSubtotal.toFixed(2)}</span>
+                            </div>
+                            <div class="flex justify-between text-slate-400">
+                                <span>SST & Taxes Share</span>
+                                <span>RM ${pb.directTax.toFixed(2)}</span>
+                            </div>
+                            <div class="flex justify-between text-slate-400">
+                                <span>Service Charge Share (${state.serviceChargeRate}%)</span>
+                                <span>RM ${pb.directSvc.toFixed(2)}</span>
+                            </div>
+
+                            ${pb.sharedGuestShares.length > 0 ? `
+                                <div class="pt-2 border-t border-dashed border-slate-200 dark:border-slate-700 space-y-1">
+                                    <span class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Guest Shares (D1/D2 Portion):</span>
+                                    ${pb.sharedGuestShares.map(g => `
+                                        <div class="flex justify-between text-amber-600 dark:text-amber-400">
+                                            <span>• Share of ${g.guestName}</span>
+                                            <span>+ RM ${g.amount.toFixed(2)}</span>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function generateWhatsAppText() {
+            const res = calculateBreakdown();
+            let text = `🧾 *MEAL BILL BREAKDOWN*\n`;
+            text += `------------------------------\n`;
+
+            Object.values(res.primaryBreakdowns).forEach(pb => {
+                const familyLabel = pb.dependents.length > 0 
+                    ? `${pb.primary.name} (${pb.dependents.map(d => d.name).join(', ')})`
+                    : `${pb.primary.name}`;
+
+                text += `\n👤 *${familyLabel}*: *RM ${pb.finalTotal.toFixed(2)}*\n`;
+                text += `   • Items Subtotal: RM ${pb.directSubtotal.toFixed(2)}\n`;
+                text += `   • Tax & Service (${state.serviceChargeRate}%): RM ${(pb.directTax + pb.directSvc).toFixed(2)}\n`;
+                
+                if (pb.sharedGuestShares.length > 0) {
+                    pb.sharedGuestShares.forEach(g => {
+                        text += `   • Share of ${g.guestName}: +RM ${g.amount.toFixed(2)}\n`;
+                    });
+                }
+            });
+
+            text += `\n------------------------------\n`;
+            text += `💰 *GRAND TOTAL: RM ${res.grandTotal.toFixed(2)}*\n`;
+            text += `Generated with Smart Splitter`;
+
+            return text;
+        }
+
+        function showToast(message, isError = false) {
+            const toast = elements.toast;
+            const msgEl = document.getElementById('toast-message');
+            const iconEl = document.getElementById('toast-icon');
+
+            msgEl.textContent = message;
+            if (isError) {
+                iconEl.className = 'fa-solid fa-circle-exclamation text-rose-400';
+            } else {
+                iconEl.className = 'fa-solid fa-circle-check text-emerald-400';
+            }
+
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
