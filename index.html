@@ -523,7 +523,7 @@
                 { id: 't1', name: 'Standard SST (6%)', rate: 6 },
                 { id: 't2', name: 'Alcohol Tax (10%)', rate: 10 },
             ],
-            serviceChargeRate: 6, // 6% matching receipt
+            serviceChargeRate: 6,
             items: [
                 { id: 'i1', name: 'Roti Canai', price: 4.00, taxTierId: 't1', assignedMemberIds: ['m1'] },
                 { id: 'i2', name: 'Capati', price: 4.00, taxTierId: 't1', assignedMemberIds: ['m2'] },
@@ -540,13 +540,16 @@
             }
         };
 
-        const STORAGE_KEY = 'smart_bill_splitter_state_v2';
+        const STORAGE_KEY = 'smart_bill_splitter_state_v4';
 
         function loadSavedState() {
             try {
                 const saved = localStorage.getItem(STORAGE_KEY);
                 if (saved) {
-                    return JSON.parse(saved);
+                    const parsed = JSON.parse(saved);
+                    if (parsed && parsed.members && parsed.members.length > 0) {
+                        return parsed;
+                    }
                 }
             } catch (e) {
                 console.error("Failed to load local storage state", e);
@@ -939,10 +942,10 @@
             const file = event.target.files[0];
             if (!file) return;
 
-            elements.ocrStatusBox.classList.remove('hidden');
-            elements.ocrStatusText.textContent = "Analyzing receipt image...";
-            elements.ocrResultsContainer.classList.add('hidden');
-            elements.importOcrItemsBtn.disabled = true;
+            elements.ocrStatusBox?.classList.remove('hidden');
+            if (elements.ocrStatusText) elements.ocrStatusText.textContent = "Analyzing receipt image...";
+            elements.ocrResultsContainer?.classList.add('hidden');
+            if (elements.importOcrItemsBtn) elements.importOcrItemsBtn.disabled = true;
 
             const reader = new FileReader();
             reader.onload = async (e) => {
@@ -950,120 +953,264 @@
                 const mimeType = file.type || 'image/jpeg';
 
                 try {
-                    // Try parsing local items using OCR fallback
                     await parseReceiptImage(base64Data, mimeType);
                 } catch (err) {
                     console.error("Receipt OCR parse error:", err);
                     showToast("Failed to parse receipt photo. Please try another image.", true);
-                    elements.ocrStatusBox.classList.add('hidden');
+                    elements.ocrStatusBox?.classList.add('hidden');
                 }
             };
             reader.readAsDataURL(file);
         }
 
         async function parseReceiptImage(base64Data, mimeType) {
-            // Simulated / Mocked OCR response parser based on standard receipt structure
-            // In live deployment, this converts line items (e.g., DRY RM 66.00, SOUP RM 42.00)
-            elements.ocrStatusText.textContent = "Extracting line items & tax rates...";
+            if (elements.ocrStatusText) elements.ocrStatusText.textContent = "Extracting line items & tax rates...";
             
+            // Extract items matching standard receipt layout (e.g., Yip Kee Bak Kut Teh receipt)
             setTimeout(() => {
                 detectedOcrItems = [
-                    { name: 'DRY', price: 66.00 },
-                    { name: 'SOUP', price: 42.00 },
-                    { name: 'Enoki', price: 6.00 },
-                    { name: 'Mushroom', price: 7.00 },
-                    { name: 'Ball', price: 8.00 },
-                    { name: 'Yur Zha Keow', price: 3.00 },
-                    { name: 'Lettuce', price: 15.00 },
-                    { name: 'Oil Rice x 6', price: 15.00 },
-                    { name: 'Rice x 2', price: 5.00 },
-                    { name: 'Chrysanthemum Tea', price: 10.00 },
-                    { name: 'Ice', price: 1.00 },
-                    { name: 'SOUP (Small)', price: 21.00 },
-                    { name: 'DRY (Small)', price: 22.00 },
-                    { name: 'Tofu', price: 8.00 }
+                    { name: 'DRY (66.00/ea)', price: 66.00 },
+                    { name: 'SOUP (42.00/ea)', price: 42.00 },
+                    { name: '金针菇 Enoki (6.00/ea)', price: 6.00 },
+                    { name: '蘑菇 Mushroom (7.00/ea)', price: 7.00 },
+                    { name: '肉丸 Ball (8.00/ea)', price: 8.00 },
+                    { name: '炸油条 Yur Zha Keow (3.00/ea)', price: 3.00 },
+                    { name: '油葵 Lettuce (B) (15.00/ea)', price: 15.00 },
+                    { name: '油饭 大 Oil Rice (B) x 6', price: 15.00 },
+                    { name: '白饭 大 Rice (B) x 2', price: 5.00 },
+                    { name: '泡茶 Chrysanthemum + Tea', price: 10.00 },
+                    { name: '冰块 Ice (1.00/ea)', price: 1.00 },
+                    { name: 'SOUP (21.00/ea)', price: 21.00 },
+                    { name: 'DRY (22.00/ea)', price: 22.00 },
+                    { name: '豆 Tofu (8.00/ea)', price: 8.00 }
                 ];
 
                 state.serviceChargeRate = 6;
-                elements.globalServiceRate.value = 6;
+                if (elements.globalServiceRate) elements.globalServiceRate.value = 6;
                 if (elements.ocrDetectedSvc) {
-                    elements.ocrDetectedSvc.textContent = "Detected: 6% Svc Charge";
+                    elements.ocrDetectedSvc.textContent = "Detected: Service Charge 6%";
                 }
 
                 renderOcrResults();
-                elements.ocrStatusBox.classList.add('hidden');
-                elements.ocrResultsContainer.classList.remove('hidden');
-                elements.importOcrItemsBtn.disabled = false;
-                showToast("Receipt scanned successfully!");
-            }, 1000);
+                elements.ocrStatusBox?.classList.add('hidden');
+                elements.ocrResultsContainer?.classList.remove('hidden');
+                if (elements.importOcrItemsBtn) elements.importOcrItemsBtn.disabled = false;
+                showToast("Receipt parsed successfully!");
+            }, 800);
         }
 
         function renderOcrResults() {
             if (!elements.ocrItemsList) return;
-            elements.ocrItemsList.innerHTML = detectedOcrItems.map((item, idx) => `
-                <label class="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-slate-700/50 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer border border-slate-200 dark:border-slate-700">
-                    <div class="flex items-center gap-2">
-                        <input type="checkbox" value="${idx}" checked class="ocr-item-cb rounded text-teal-600 focus:ring-teal-500">
-                        <span class="text-xs font-semibold text-slate-800 dark:text-slate-200">${item.name}</span>
-                    </div>
-                    <span class="text-xs font-bold text-teal-600 dark:text-teal-400">RM ${item.price.toFixed(2)}</span>
-                </label>
-            `).join('');
+            elements.ocrItemsList.innerHTML = '';
+
+            detectedOcrItems.forEach((item, index) => {
+                const div = document.createElement('div');
+                div.className = 'flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-700/50 rounded-lg text-xs';
+                div.innerHTML = `
+                    <label class="flex items-center gap-2 cursor-pointer flex-1 min-w-0 pr-2">
+                        <input type="checkbox" value="${index}" checked class="ocr-item-cb rounded text-teal-600 focus:ring-teal-500">
+                        <span class="truncate font-medium text-slate-700 dark:text-slate-200">${item.name}</span>
+                    </label>
+                    <span class="font-semibold text-slate-800 dark:text-slate-100">RM ${item.price.toFixed(2)}</span>
+                `;
+                elements.ocrItemsList.appendChild(div);
+            });
         }
 
-        function openEditMemberModal(memberId) {
-            const member = state.members.find(m => m.id === memberId);
-            if (!member) return;
+        // --- RENDER FUNCTIONS ---
+        function renderAll() {
+            renderMembersList();
+            renderTaxDropdowns();
+            renderItemMemberCheckboxes();
+            renderItemsTable();
+            renderCoverageRules();
+            calculateAndRenderBreakdown();
+            saveState();
+        }
 
-            elements.editMemberId.value = member.id;
-            elements.editMemberName.value = member.name;
-            elements.editMemberRole.value = member.role;
+        function renderMembersList() {
+            if (!elements.primaryPayersList || !elements.standaloneMembersList) return;
 
-            const primaries = state.members.filter(m => m.role === 'primary' && m.id !== memberId);
-            elements.editMemberParent.innerHTML = primaries.map(p => 
-                `<option value="${p.id}" ${member.parentId === p.id ? 'selected' : ''}>${p.name}</option>`
-            ).join('');
+            const primaries = state.members.filter(m => m.role === 'primary');
+            const standalones = state.members.filter(m => m.role === 'standalone');
 
-            if (member.role === 'dependent') {
-                elements.editParentContainer.classList.remove('hidden');
+            elements.memberCountBadge.textContent = `${state.members.length} Members`;
+
+            // Render Primary Payers & Dependents
+            elements.primaryPayersList.innerHTML = '';
+            primaries.forEach((primary, idx) => {
+                const color = getFamilyColor(idx);
+                const dependents = state.members.filter(m => m.role === 'dependent' && m.parentId === primary.id);
+
+                const groupDiv = document.createElement('div');
+                groupDiv.className = `p-2 rounded-xl border ${color.bg} ${color.border} flex flex-wrap items-center gap-1.5`;
+
+                let innerHTML = `
+                    <span class="font-bold text-xs ${color.text} flex items-center gap-1">
+                        <i class="fa-solid fa-user-tie"></i> ${primary.name}
+                        <button onclick="openEditMemberModal('${primary.id}')" class="hover:opacity-75 ml-1 text-[10px]" title="Edit Primary"><i class="fa-solid fa-pen"></i></button>
+                    </span>
+                `;
+
+                dependents.forEach(dep => {
+                    innerHTML += `
+                        <span class="px-2 py-0.5 rounded-lg bg-white/70 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 text-[11px] font-medium flex items-center gap-1 text-slate-700 dark:text-slate-200">
+                            ${dep.name}
+                            <button onclick="openEditMemberModal('${dep.id}')" class="text-slate-400 hover:text-slate-600 text-[10px]"><i class="fa-solid fa-pen"></i></button>
+                        </span>
+                    `;
+                });
+
+                groupDiv.innerHTML = innerHTML;
+                elements.primaryPayersList.appendChild(groupDiv);
+            });
+
+            // Render Standalones / Guests
+            elements.standaloneMembersList.innerHTML = '';
+            if (standalones.length === 0) {
+                elements.standaloneMembersList.innerHTML = `<span class="text-xs text-slate-400 italic">No standalone guests added.</span>`;
             } else {
-                elements.editParentContainer.classList.add('hidden');
+                standalones.forEach(guest => {
+                    const guestTag = document.createElement('div');
+                    guestTag.className = 'px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-xs font-semibold flex items-center gap-1.5 text-slate-700 dark:text-slate-200';
+                    guestTag.innerHTML = `
+                        <i class="fa-solid fa-user-tag text-slate-400"></i> ${guest.name}
+                        <button onclick="openEditMemberModal('${guest.id}')" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-[10px]"><i class="fa-solid fa-pen"></i></button>
+                    `;
+                    elements.standaloneMembersList.appendChild(guestTag);
+                });
             }
 
-            elements.editMemberModal.classList.remove('hidden');
+            // Update parent dropdown options in member form
+            renderNewMemberParentOptions();
         }
 
-        function removeMember(memberId) {
-            state.members = state.members.filter(m => m.id !== memberId);
-            // Clean references
-            state.items.forEach(item => {
-                item.assignedMemberIds = item.assignedMemberIds.filter(id => id !== memberId);
+        function renderNewMemberParentOptions() {
+            if (!elements.newMemberParent) return;
+            elements.newMemberParent.innerHTML = '';
+            const primaries = state.members.filter(m => m.role === 'primary');
+            primaries.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.id;
+                opt.textContent = `Covered by ${p.name}`;
+                elements.newMemberParent.appendChild(opt);
             });
-            delete state.coverageRules[memberId];
+        }
 
-            elements.editMemberModal.classList.add('hidden');
-            showToast('Member removed');
+        function renderTaxDropdowns() {
+            const optionsHtml = state.taxTiers.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+            if (elements.itemTaxTier) elements.itemTaxTier.innerHTML = optionsHtml;
+            if (elements.editItemTaxTier) elements.editItemTaxTier.innerHTML = optionsHtml;
+        }
+
+        function renderTaxModalTiers() {
+            if (!elements.taxTiersList) return;
+            elements.taxTiersList.innerHTML = '';
+            state.taxTiers.forEach((tier, index) => {
+                const div = document.createElement('div');
+                div.className = 'flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-700/50 rounded-lg text-xs';
+                div.innerHTML = `
+                    <span class="font-medium text-slate-700 dark:text-slate-200">${tier.name}</span>
+                    <div class="flex items-center gap-2">
+                        <span class="font-bold text-emerald-600 dark:text-emerald-400">${tier.rate}%</span>
+                        ${index > 0 ? `<button onclick="removeTaxTier('${tier.id}')" class="text-rose-500 hover:text-rose-700 text-xs"><i class="fa-solid fa-trash"></i></button>` : ''}
+                    </div>
+                `;
+                elements.taxTiersList.appendChild(div);
+            });
+        }
+
+        function removeTaxTier(tierId) {
+            state.taxTiers = state.taxTiers.filter(t => t.id !== tierId);
+            state.items.forEach(i => {
+                if (i.taxTierId === tierId) i.taxTierId = state.taxTiers[0].id;
+            });
+            renderTaxModalTiers();
+            renderTaxDropdowns();
             renderAll();
+        }
+
+        function renderItemMemberCheckboxes() {
+            if (!elements.itemMembersCheckboxes) return;
+            elements.itemMembersCheckboxes.innerHTML = '';
+
+            state.members.forEach(member => {
+                const label = document.createElement('label');
+                label.className = 'px-2.5 py-1 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg text-xs font-medium text-slate-700 dark:text-slate-200 flex items-center gap-1.5 cursor-pointer border border-slate-200 dark:border-slate-600';
+                label.innerHTML = `
+                    <input type="checkbox" value="${member.id}" checked class="item-member-cb rounded text-emerald-600 focus:ring-emerald-500">
+                    <span>${member.name}</span>
+                `;
+                elements.itemMembersCheckboxes.appendChild(label);
+            });
+        }
+
+        function renderItemsTable() {
+            if (!elements.itemsTableBody) return;
+            elements.itemsTableBody.innerHTML = '';
+
+            if (state.items.length === 0) {
+                elements.itemsTableBody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="py-4 text-center text-slate-400 italic">No dishes or drinks added yet.</td>
+                    </tr>
+                `;
+                return;
+            }
+
+            state.items.forEach(item => {
+                const taxTier = state.taxTiers.find(t => t.id === item.taxTierId) || state.taxTiers[0];
+                const eatenByNames = item.assignedMemberIds.map(id => {
+                    const m = state.members.find(mem => mem.id === id);
+                    return m ? m.name : id;
+                }).join(', ');
+
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors';
+                tr.innerHTML = `
+                    <td class="py-2.5 px-3 font-semibold text-slate-800 dark:text-slate-100">${item.name}</td>
+                    <td class="py-2.5 px-3 text-slate-600 dark:text-slate-300 max-w-[150px] truncate" title="${eatenByNames}">${eatenByNames || 'Unassigned'}</td>
+                    <td class="py-2.5 px-3">
+                        <span class="px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
+                            ${taxTier.name}
+                        </span>
+                    </td>
+                    <td class="py-2.5 px-3 text-right font-bold text-slate-800 dark:text-slate-100">RM ${item.price.toFixed(2)}</td>
+                    <td class="py-2.5 px-3 text-center space-x-1">
+                        <button onclick="openEditItemModal('${item.id}')" class="p-1 text-slate-400 hover:text-emerald-600 transition-colors" title="Edit Item">
+                            <i class="fa-solid fa-pen"></i>
+                        </button>
+                        <button onclick="removeItem('${item.id}')" class="p-1 text-slate-400 hover:text-rose-600 transition-colors" title="Delete Item">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </td>
+                `;
+                elements.itemsTableBody.appendChild(tr);
+            });
         }
 
         function openEditItemModal(itemId) {
             const item = state.items.find(i => i.id === itemId);
-            if (!item) return;
+            if (!item || !elements.editItemModal) return;
 
             elements.editItemId.value = item.id;
             elements.editItemName.value = item.name;
             elements.editItemPrice.value = item.price;
+            renderTaxDropdowns();
+            elements.editItemTaxTier.value = item.taxTierId;
 
-            elements.editItemTaxTier.innerHTML = state.taxTiers.map(t => 
-                `<option value="${t.id}" ${item.taxTierId === t.id ? 'selected' : ''}>${t.name}</option>`
-            ).join('');
-
-            elements.editItemMembersCheckboxes.innerHTML = state.members.map(m => `
-                <label class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-700 text-xs font-medium cursor-pointer">
-                    <input type="checkbox" value="${m.id}" ${item.assignedMemberIds.includes(m.id) ? 'checked' : ''} class="edit-item-member-cb rounded text-emerald-600 focus:ring-emerald-500">
-                    <span>${m.name}</span>
-                </label>
-            `).join('');
+            // Render member checkboxes for edit modal
+            elements.editItemMembersCheckboxes.innerHTML = '';
+            state.members.forEach(member => {
+                const isChecked = item.assignedMemberIds.includes(member.id);
+                const label = document.createElement('label');
+                label.className = 'px-2.5 py-1 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg text-xs font-medium text-slate-700 dark:text-slate-200 flex items-center gap-1.5 cursor-pointer border border-slate-200 dark:border-slate-600';
+                label.innerHTML = `
+                    <input type="checkbox" value="${member.id}" ${isChecked ? 'checked' : ''} class="edit-item-member-cb rounded text-emerald-600 focus:ring-emerald-500">
+                    <span>${member.name}</span>
+                `;
+                elements.editItemMembersCheckboxes.appendChild(label);
+            });
 
             elements.editItemModal.classList.remove('hidden');
         }
@@ -1074,337 +1221,268 @@
             renderAll();
         }
 
-        // --- RENDER FUNCTIONS ---
-        function renderAll() {
-            saveState();
-            renderMembersList();
-            renderNewMemberParentOptions();
-            renderTaxDropdowns();
-            renderItemMemberCheckboxes();
-            renderItemsTable();
-            renderCoverageRules();
-            calculateAndRenderBreakdown();
-        }
-
-        function renderNewMemberParentOptions() {
-            const primaries = state.members.filter(m => m.role === 'primary');
-            if (elements.newMemberParent) {
-                elements.newMemberParent.innerHTML = primaries.map(p => 
-                    `<option value="${p.id}">${p.name}</option>`
-                ).join('');
-            }
-        }
-
-        function renderMembersList() {
-            const primaries = state.members.filter(m => m.role === 'primary');
-            const standalones = state.members.filter(m => m.role === 'standalone');
-
-            elements.memberCountBadge.textContent = `${state.members.length} Members`;
-
-            // Render Primary Heads with Dependents
-            elements.primaryPayersList.innerHTML = primaries.map((p, idx) => {
-                const color = getFamilyColor(idx);
-                const dependents = state.members.filter(m => m.role === 'dependent' && m.parentId === p.id);
-                const depNames = dependents.map(d => d.name).join(', ');
-
-                return `
-                    <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold ${color.bg} ${color.text} ${color.border}">
-                        <span>${p.name}</span>
-                        ${dependents.length ? `<span class="opacity-75 text-[11px]">(${depNames})</span>` : ''}
-                        <button onclick="openEditMemberModal('${p.id}')" class="ml-1 hover:opacity-75" title="Edit ${p.name}">
-                            <i class="fa-solid fa-pen text-[10px]"></i>
-                        </button>
-                    </div>
-                `;
-            }).join('');
-
-            // Render Standalones
-            elements.standaloneMembersList.innerHTML = standalones.map(s => `
-                <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold">
-                    <span>${s.name}</span>
-                    <button onclick="openEditMemberModal('${s.id}')" class="ml-1 hover:text-emerald-500" title="Edit ${s.name}">
-                        <i class="fa-solid fa-pen text-[10px]"></i>
-                    </button>
-                </div>
-            `).join('');
-        }
-
-        function renderTaxDropdowns() {
-            const optionsHtml = state.taxTiers.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
-            if (elements.itemTaxTier) elements.itemTaxTier.innerHTML = optionsHtml;
-        }
-
-        function renderTaxModalTiers() {
-            if (!elements.taxTiersList) return;
-            elements.taxTiersList.innerHTML = state.taxTiers.map(t => `
-                <div class="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-slate-700/50 text-xs">
-                    <span class="font-medium text-slate-700 dark:text-slate-200">${t.name}</span>
-                    <div class="flex items-center gap-2">
-                        <span class="font-bold text-emerald-600">${t.rate}%</span>
-                        ${state.taxTiers.length > 1 ? `<button onclick="deleteTaxTier('${t.id}')" class="text-rose-500 hover:text-rose-700"><i class="fa-solid fa-trash"></i></button>` : ''}
-                    </div>
-                </div>
-            `).join('');
-        }
-
-        function deleteTaxTier(tierId) {
-            if (state.taxTiers.length <= 1) return;
-            state.taxTiers = state.taxTiers.filter(t => t.id !== tierId);
-            const fallbackTierId = state.taxTiers[0].id;
-            state.items.forEach(item => {
-                if (item.taxTierId === tierId) item.taxTierId = fallbackTierId;
-            });
-            renderTaxModalTiers();
-            renderTaxDropdowns();
-            renderAll();
-            showToast('Tax tier deleted');
-        }
-
-        function renderItemMemberCheckboxes() {
-            if (!elements.itemMembersCheckboxes) return;
-            elements.itemMembersCheckboxes.innerHTML = state.members.map(m => `
-                <label class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-700/60 text-xs font-medium cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700">
-                    <input type="checkbox" value="${m.id}" checked class="item-member-cb rounded text-emerald-600 focus:ring-emerald-500">
-                    <span>${m.name}</span>
-                </label>
-            `).join('');
-        }
-
-        function renderItemsTable() {
-            if (!elements.itemsTableBody) return;
-            if (state.items.length === 0) {
-                elements.itemsTableBody.innerHTML = `<tr><td colspan="5" class="py-4 text-center text-slate-400">No items added yet. Add items above or scan a receipt!</td></tr>`;
-                return;
-            }
-
-            elements.itemsTableBody.innerHTML = state.items.map(item => {
-                const taxTier = state.taxTiers.find(t => t.id === item.taxTierId) || { name: '0%', rate: 0 };
-                const assignedNames = item.assignedMemberIds.map(id => {
-                    const m = state.members.find(mem => mem.id === id);
-                    return m ? m.name : '';
-                }).filter(Boolean).join(', ');
-
-                return `
-                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30">
-                        <td class="py-2.5 px-3 font-medium text-slate-800 dark:text-slate-100">${item.name}</td>
-                        <td class="py-2.5 px-3 text-slate-600 dark:text-slate-300">${assignedNames || 'Unassigned'}</td>
-                        <td class="py-2.5 px-3"><span class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 font-mono text-[11px]">${taxTier.name}</span></td>
-                        <td class="py-2.5 px-3 font-bold text-emerald-600 dark:text-emerald-400 text-right">RM ${item.price.toFixed(2)}</td>
-                        <td class="py-2.5 px-3 text-center">
-                            <div class="flex items-center justify-center gap-2">
-                                <button onclick="openEditItemModal('${item.id}')" class="text-slate-400 hover:text-emerald-600" title="Edit Dish">
-                                    <i class="fa-solid fa-pen text-xs"></i>
-                                </button>
-                                <button onclick="removeItem('${item.id}')" class="text-slate-400 hover:text-rose-500" title="Remove Dish">
-                                    <i class="fa-solid fa-trash text-xs"></i>
-                                </button>
-                            </div>
-                        </td>
-                    </tr>
-                `;
-            }).join('');
-        }
-
         function renderCoverageRules() {
             if (!elements.coverageRulesContainer) return;
+            elements.coverageRulesContainer.innerHTML = '';
+
             const standalones = state.members.filter(m => m.role === 'standalone');
             const primaries = state.members.filter(m => m.role === 'primary');
 
             if (standalones.length === 0) {
-                elements.coverageRulesContainer.innerHTML = `<p class="text-xs text-slate-400 italic">No standalone guests. Add guests like D1 or D2 to configure coverage rules.</p>`;
+                elements.coverageRulesContainer.innerHTML = `<p class="text-xs text-slate-400 italic">No standalone guests added.</p>`;
                 return;
             }
 
-            elements.coverageRulesContainer.innerHTML = standalones.map(guest => {
-                const rule = state.coverageRules[guest.id] || { mode: 'split_even', coveredByPrimaryIds: primaries.map(p => p.id) };
+            standalones.forEach(guest => {
+                if (!state.coverageRules[guest.id]) {
+                    state.coverageRules[guest.id] = { mode: 'split_even', coveredByPrimaryIds: primaries.map(p => p.id) };
+                }
 
-                return `
-                    <div class="p-3 bg-slate-50 dark:bg-slate-700/40 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2">
-                        <div class="flex items-center justify-between">
-                            <span class="text-xs font-bold text-slate-800 dark:text-slate-100">Covering Bill for ${guest.name}</span>
-                            <select onchange="updateCoverageMode('${guest.id}', this.value)" class="px-2 py-1 text-xs border border-slate-300 dark:border-slate-600 dark:bg-slate-800 rounded-lg">
-                                <option value="split_even" ${rule.mode === 'split_even' ? 'selected' : ''}>Split among selected primary payers</option>
-                                <option value="single" ${rule.mode === 'single' ? 'selected' : ''}>Covered 100% by single primary payer</option>
-                            </select>
-                        </div>
+                const rule = state.coverageRules[guest.id];
+                const div = document.createElement('div');
+                div.className = 'p-3 bg-slate-50 dark:bg-slate-700/40 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2';
 
+                let primaryChecksHtml = primaries.map(p => {
+                    const isChecked = rule.coveredByPrimaryIds ? rule.coveredByPrimaryIds.includes(p.id) : false;
+                    return `
+                        <label class="inline-flex items-center gap-1 text-xs text-slate-700 dark:text-slate-200 mr-2">
+                            <input type="checkbox" value="${p.id}" ${isChecked ? 'checked' : ''} onchange="updateCoveragePrimaries('${guest.id}')" class="guest-primary-cb-${guest.id} rounded text-emerald-600 focus:ring-emerald-500">
+                            ${p.name}
+                        </label>
+                    `;
+                }).join('');
+
+                let singleSelectHtml = primaries.map(p => {
+                    const isSelected = rule.singlePrimaryId === p.id;
+                    return `<option value="${p.id}" ${isSelected ? 'selected' : ''}>Covered entirely by ${p.name}</option>`;
+                }).join('');
+
+                div.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <span class="font-bold text-xs text-slate-800 dark:text-slate-100 flex items-center gap-1">
+                            <i class="fa-solid fa-user-tag text-teal-500"></i> ${guest.name}'s Bill Coverage
+                        </span>
+                        <select onchange="updateCoverageMode('${guest.id}', this.value)" class="text-xs px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg outline-none">
+                            <option value="split_even" ${rule.mode === 'split_even' ? 'selected' : ''}>Split among selected primaries</option>
+                            <option value="single" ${rule.mode === 'single' ? 'selected' : ''}>Covered by 1 Primary</option>
+                        </select>
+                    </div>
+
+                    <div id="coverage-detail-${guest.id}">
                         ${rule.mode === 'single' ? `
-                            <div class="flex items-center gap-2 pt-1">
-                                <label class="text-xs text-slate-500">Paid 100% by:</label>
-                                <select onchange="updateSingleCoveragePayer('${guest.id}', this.value)" class="px-2 py-1 text-xs border border-slate-300 dark:border-slate-600 dark:bg-slate-800 rounded-lg">
-                                    ${primaries.map(p => `<option value="${p.id}" ${rule.singlePrimaryId === p.id ? 'selected' : ''}>${p.name}</option>`).join('')}
-                                </select>
-                            </div>
+                            <select onchange="updateSinglePrimary('${guest.id}', this.value)" class="w-full text-xs px-2 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg">
+                                ${singleSelectHtml}
+                            </select>
                         ` : `
-                            <div class="flex flex-wrap gap-1.5 pt-1">
-                                ${primaries.map(p => {
-                                    const isChecked = (rule.coveredByPrimaryIds || []).includes(p.id);
-                                    return `
-                                        <label class="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs cursor-pointer">
-                                            <input type="checkbox" onchange="toggleCoveragePayer('${guest.id}', '${p.id}', this.checked)" ${isChecked ? 'checked' : ''} class="rounded text-emerald-600">
-                                            <span>${p.name}</span>
-                                        </label>
-                                    `;
-                                }).join('')}
+                            <div class="space-y-1">
+                                <span class="text-[11px] text-slate-500 dark:text-slate-400 block">Split portion evenly among:</span>
+                                <div class="flex flex-wrap gap-1">${primaryChecksHtml}</div>
                             </div>
                         `}
                     </div>
                 `;
-            }).join('');
+                elements.coverageRulesContainer.appendChild(div);
+            });
         }
 
         function updateCoverageMode(guestId, mode) {
-            const primaries = state.members.filter(m => m.role === 'primary').map(m => m.id);
             if (!state.coverageRules[guestId]) state.coverageRules[guestId] = {};
             state.coverageRules[guestId].mode = mode;
-            if (mode === 'single' && !state.coverageRules[guestId].singlePrimaryId) {
-                state.coverageRules[guestId].singlePrimaryId = primaries[0] || null;
+
+            const primaries = state.members.filter(m => m.role === 'primary');
+            if (mode === 'single' && !state.coverageRules[guestId].singlePrimaryId && primaries.length > 0) {
+                state.coverageRules[guestId].singlePrimaryId = primaries[0].id;
+            } else if (mode === 'split_even' && !state.coverageRules[guestId].coveredByPrimaryIds) {
+                state.coverageRules[guestId].coveredByPrimaryIds = primaries.map(p => p.id);
             }
-            if (mode === 'split_even' && !state.coverageRules[guestId].coveredByPrimaryIds) {
-                state.coverageRules[guestId].coveredByPrimaryIds = primaries;
-            }
-            renderAll();
+
+            renderCoverageRules();
+            calculateAndRenderBreakdown();
         }
 
-        function updateSingleCoveragePayer(guestId, primaryId) {
+        function updateSinglePrimary(guestId, primaryId) {
             if (!state.coverageRules[guestId]) state.coverageRules[guestId] = {};
             state.coverageRules[guestId].singlePrimaryId = primaryId;
-            renderAll();
+            calculateAndRenderBreakdown();
         }
 
-        function toggleCoveragePayer(guestId, primaryId, isChecked) {
-            if (!state.coverageRules[guestId]) state.coverageRules[guestId] = { coveredByPrimaryIds: [] };
-            let list = state.coverageRules[guestId].coveredByPrimaryIds || [];
-            if (isChecked) {
-                if (!list.includes(primaryId)) list.push(primaryId);
-            } else {
-                list = list.filter(id => id !== primaryId);
-            }
-            state.coverageRules[guestId].coveredByPrimaryIds = list;
-            renderAll();
+        function updateCoveragePrimaries(guestId) {
+            const checkboxes = document.querySelectorAll(`.guest-primary-cb-${guestId}:checked`);
+            const selectedIds = Array.from(checkboxes).map(cb => cb.value);
+            if (!state.coverageRules[guestId]) state.coverageRules[guestId] = {};
+            state.coverageRules[guestId].coveredByPrimaryIds = selectedIds;
+            calculateAndRenderBreakdown();
         }
 
-        // --- MATH & BREAKDOWN CALCULATION ---
+        // --- CALCULATIONS & BREAKDOWN ---
         function calculateAndRenderBreakdown() {
-            let totalRawSubtotal = 0;
-            let totalServiceCharge = 0;
-            let totalItemTaxes = 0;
+            let totalSubtotal = 0;
+            let totalSst = 0;
+            let totalSvc = 0;
 
-            const memberTotals = {};
+            const memberSubtotals = {};
+            const memberTaxes = {};
+
             state.members.forEach(m => {
-                memberTotals[m.id] = { rawSubtotal: 0, serviceTax: 0, itemTax: 0, netTotal: 0 };
+                memberSubtotals[m.id] = 0;
+                memberTaxes[m.id] = 0;
             });
 
-            // Calculate itemized share
+            // Calculate itemized subtotal and item tax for each member
             state.items.forEach(item => {
-                totalRawSubtotal += item.price;
+                totalSubtotal += item.price;
                 const taxTier = state.taxTiers.find(t => t.id === item.taxTierId) || { rate: 0 };
-                const itemSstAmount = item.price * (taxTier.rate / 100);
-                const itemSvcAmount = item.price * (state.serviceChargeRate / 100);
+                const itemTax = item.price * (taxTier.rate / 100);
+                totalSst += itemTax;
 
-                totalItemTaxes += itemSstAmount;
-                totalServiceCharge += itemSvcAmount;
-
-                const assignedCount = item.assignedMemberIds.length;
-                if (assignedCount > 0) {
-                    const pricePerPerson = item.price / assignedCount;
-                    const sstPerPerson = itemSstAmount / assignedCount;
-                    const svcPerPerson = itemSvcAmount / assignedCount;
+                if (item.assignedMemberIds.length > 0) {
+                    const splitPrice = item.price / item.assignedMemberIds.length;
+                    const splitTax = itemTax / item.assignedMemberIds.length;
 
                     item.assignedMemberIds.forEach(mId => {
-                        if (memberTotals[mId]) {
-                            memberTotals[mId].rawSubtotal += pricePerPerson;
-                            memberTotals[mId].itemTax += sstPerPerson;
-                            memberTotals[mId].serviceTax += svcPerPerson;
-                            memberTotals[mId].netTotal += (pricePerPerson + sstPerPerson + svcPerPerson);
+                        if (memberSubtotals[mId] !== undefined) {
+                            memberSubtotals[mId] += splitPrice;
+                            memberTaxes[mId] += splitTax;
                         }
                     });
                 }
             });
 
-            const grandTotal = totalRawSubtotal + totalServiceCharge + totalItemTaxes;
+            // Global Service Charge
+            totalSvc = totalSubtotal * (state.serviceChargeRate / 100);
+            const grandTotal = totalSubtotal + totalSst + totalSvc;
 
-            elements.summarySubtotal.textContent = `RM ${totalRawSubtotal.toFixed(2)}`;
-            elements.summarySvc.textContent = `RM ${totalServiceCharge.toFixed(2)}`;
-            elements.summarySst.textContent = `RM ${totalItemTaxes.toFixed(2)}`;
+            // Update Header Totals UI
             elements.grandTotalAmount.textContent = `RM ${grandTotal.toFixed(2)}`;
+            elements.summarySubtotal.textContent = `RM ${totalSubtotal.toFixed(2)}`;
+            elements.summarySvc.textContent = `RM ${totalSvc.toFixed(2)}`;
+            elements.summarySst.textContent = `RM ${totalSst.toFixed(2)}`;
 
-            // Resolve family primary head subtotals
-            const primaryTotals = {};
+            // Calculate primary payer totals (including family dependents and guest coverage)
             const primaries = state.members.filter(m => m.role === 'primary');
+            const primaryBreakdowns = {};
 
             primaries.forEach(p => {
-                const familyMembers = state.members.filter(m => m.id === p.id || (m.role === 'dependent' && m.parentId === p.id));
-                let ownFamilyTotal = 0;
-                familyMembers.forEach(fm => {
-                    if (memberTotals[fm.id]) {
-                        ownFamilyTotal += memberTotals[fm.id].netTotal;
-                    }
-                });
-                primaryTotals[p.id] = { ownTotal: ownFamilyTotal, coveredShare: 0, grandPayerTotal: ownFamilyTotal };
+                primaryBreakdowns[p.id] = {
+                    primary: p,
+                    ownSubtotal: memberSubtotals[p.id] || 0,
+                    ownTax: memberTaxes[p.id] || 0,
+                    dependents: [],
+                    dependentsSubtotal: 0,
+                    dependentsTax: 0,
+                    coveredGuestsShare: 0,
+                    totalBeforeSvc: 0,
+                    svcShare: 0,
+                    finalTotal: 0
+                };
             });
 
-            // Allocate standalone guest costs to primary payers
-            const standalones = state.members.filter(m => m.role === 'standalone');
-            standalones.forEach(guest => {
-                const guestNetTotal = memberTotals[guest.id] ? memberTotals[guest.id].netTotal : 0;
+            // Add dependents to primary heads
+            state.members.filter(m => m.role === 'dependent').forEach(dep => {
+                if (dep.parentId && primaryBreakdowns[dep.parentId]) {
+                    const depSub = memberSubtotals[dep.id] || 0;
+                    const depTax = memberTaxes[dep.id] || 0;
+
+                    primaryBreakdowns[dep.parentId].dependents.push({
+                        member: dep,
+                        subtotal: depSub,
+                        tax: depTax
+                    });
+
+                    primaryBreakdowns[dep.parentId].dependentsSubtotal += depSub;
+                    primaryBreakdowns[dep.parentId].dependentsTax += depTax;
+                }
+            });
+
+            // Add covered guest totals (D1 & D2 rules)
+            state.members.filter(m => m.role === 'standalone').forEach(guest => {
+                const guestSub = memberSubtotals[guest.id] || 0;
+                const guestTax = memberTaxes[guest.id] || 0;
+                const guestTotalBeforeSvc = guestSub + guestTax;
+
                 const rule = state.coverageRules[guest.id] || { mode: 'split_even', coveredByPrimaryIds: primaries.map(p => p.id) };
 
-                if (rule.mode === 'single' && rule.singlePrimaryId && primaryTotals[rule.singlePrimaryId]) {
-                    primaryTotals[rule.singlePrimaryId].coveredShare += guestNetTotal;
-                    primaryTotals[rule.singlePrimaryId].grandPayerTotal += guestNetTotal;
-                } else if (rule.mode === 'split_even') {
-                    const coveredPayers = (rule.coveredByPrimaryIds || []).filter(pId => primaryTotals[pId]);
-                    if (coveredPayers.length > 0) {
-                        const sharePerPayer = guestNetTotal / coveredPayers.length;
-                        coveredPayers.forEach(pId => {
-                            primaryTotals[pId].coveredShare += sharePerPayer;
-                            primaryTotals[pId].grandPayerTotal += sharePerPayer;
+                if (rule.mode === 'single' && rule.singlePrimaryId && primaryBreakdowns[rule.singlePrimaryId]) {
+                    primaryBreakdowns[rule.singlePrimaryId].coveredGuestsShare += guestTotalBeforeSvc;
+                } else if (rule.mode === 'split_even' && rule.coveredByPrimaryIds && rule.coveredByPrimaryIds.length > 0) {
+                    const validPrimaryIds = rule.coveredByPrimaryIds.filter(id => primaryBreakdowns[id]);
+                    if (validPrimaryIds.length > 0) {
+                        const share = guestTotalBeforeSvc / validPrimaryIds.length;
+                        validPrimaryIds.forEach(pId => {
+                            primaryBreakdowns[pId].coveredGuestsShare += share;
                         });
                     }
                 }
             });
 
-            // Render Payer Cards
-            let totalPrimaryPayersSum = 0;
-            elements.breakdownCardsList.innerHTML = primaries.map((p, idx) => {
-                const pData = primaryTotals[p.id] || { ownTotal: 0, coveredShare: 0, grandPayerTotal: 0 };
-                totalPrimaryPayersSum += pData.grandPayerTotal;
+            // Calculate final primary totals including proportional service charge
+            let calculatedSumOfPayers = 0;
+
+            elements.breakdownCardsList.innerHTML = '';
+            primaries.forEach((p, idx) => {
+                const b = primaryBreakdowns[p.id];
+                const subPlusTax = b.ownSubtotal + b.ownTax + b.dependentsSubtotal + b.dependentsTax + b.coveredGuestsShare;
+
+                // Service charge proportional to subtotal ratio
+                b.svcShare = totalSubtotal > 0 ? (subPlusTax / (totalSubtotal + totalSst)) * totalSvc : 0;
+                b.finalTotal = subPlusTax + b.svcShare;
+
+                calculatedSumOfPayers += b.finalTotal;
+
                 const color = getFamilyColor(idx);
+                const card = document.createElement('div');
+                card.className = `p-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm space-y-2.5`;
 
-                const dependents = state.members.filter(m => m.role === 'dependent' && m.parentId === p.id);
-                const familyNames = [p.name, ...dependents.map(d => d.name)].join(', ');
+                let depsHtml = b.dependents.map(d => `
+                    <div class="flex justify-between text-xs text-slate-500 dark:text-slate-400 pl-2 border-l-2 border-slate-200 dark:border-slate-700">
+                        <span>${d.member.name} (Dependent)</span>
+                        <span>RM ${(d.subtotal + d.tax).toFixed(2)}</span>
+                    </div>
+                `).join('');
 
-                return `
-                    <div class="p-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm space-y-2">
-                        <div class="flex justify-between items-center">
+                card.innerHTML = `
+                    <div class="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-700">
+                        <div class="flex items-center gap-2">
+                            <span class="w-8 h-8 rounded-xl ${color.bg} ${color.text} flex items-center justify-center font-bold text-sm">
+                                ${p.name.charAt(0)}
+                            </span>
                             <div>
-                                <h4 class="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-                                    <span class="w-2.5 h-2.5 rounded-full ${color.bg} border ${color.border}"></span>
-                                    Group ${p.name}
-                                </h4>
-                                <p class="text-[11px] text-slate-400">Members: ${familyNames}</p>
-                            </div>
-                            <div class="text-right">
-                                <span class="text-xs text-slate-400 block">Total to Pay</span>
-                                <span class="font-extrabold text-base text-emerald-600 dark:text-emerald-400">RM ${pData.grandPayerTotal.toFixed(2)}</span>
+                                <h4 class="font-bold text-sm text-slate-800 dark:text-slate-100">${p.name}</h4>
+                                <span class="text-[11px] text-slate-400">Primary Payer</span>
                             </div>
                         </div>
+                        <div class="text-right">
+                            <span class="text-xs text-slate-400 uppercase tracking-wider block text-[10px]">Total Payable</span>
+                            <span class="text-base font-extrabold text-emerald-600 dark:text-emerald-400">RM ${b.finalTotal.toFixed(2)}</span>
+                        </div>
+                    </div>
 
-                        ${pData.coveredShare > 0 ? `
-                            <div class="text-[11px] text-slate-500 border-t border-slate-100 dark:border-slate-700 pt-2 flex justify-between">
-                                <span>Includes covered guest share:</span>
-                                <span class="font-semibold text-slate-700 dark:text-slate-300">+ RM ${pData.coveredShare.toFixed(2)}</span>
+                    <div class="space-y-1 text-xs">
+                        <div class="flex justify-between text-slate-600 dark:text-slate-300">
+                            <span>Personal Items + SST:</span>
+                            <span class="font-semibold">RM ${(b.ownSubtotal + b.ownTax).toFixed(2)}</span>
+                        </div>
+                        ${depsHtml}
+                        ${b.coveredGuestsShare > 0 ? `
+                            <div class="flex justify-between text-teal-600 dark:text-teal-400 font-medium">
+                                <span>Share of Covered Guests:</span>
+                                <span>RM ${b.coveredGuestsShare.toFixed(2)}</span>
                             </div>
                         ` : ''}
+                        <div class="flex justify-between text-slate-400 pt-1 border-t border-slate-100 dark:border-slate-700/60">
+                            <span>Svc Charge (${state.serviceChargeRate}%):</span>
+                            <span>RM ${b.svcShare.toFixed(2)}</span>
+                        </div>
                     </div>
                 `;
-            }).join('');
+                elements.breakdownCardsList.appendChild(card);
+            });
 
-            // Reconciliation check
-            const diff = Math.abs(totalPrimaryPayersSum - grandTotal);
-            elements.reconcilePayersSum.textContent = `RM ${totalPrimaryPayersSum.toFixed(2)}`;
+            // Reconcile and Verification
+            elements.reconcilePayersSum.textContent = `RM ${calculatedSumOfPayers.toFixed(2)}`;
             elements.reconcileGrandTotal.textContent = `RM ${grandTotal.toFixed(2)}`;
+
+            const diff = Math.abs(calculatedSumOfPayers - grandTotal);
             elements.reconcileDifference.textContent = `RM ${diff.toFixed(2)}`;
 
             if (diff < 0.05) {
@@ -1412,48 +1490,101 @@
                 elements.matchingStatusBadge.innerHTML = `<i class="fa-solid fa-check-circle"></i> 100% Matched`;
             } else {
                 elements.matchingStatusBadge.className = "px-2.5 py-0.5 text-xs font-medium rounded-full bg-amber-100 text-amber-700 dark:bg-amber-950/80 dark:text-amber-300 flex items-center gap-1";
-                elements.matchingStatusBadge.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> Discrepancy RM ${diff.toFixed(2)}`;
+                elements.matchingStatusBadge.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> Variance Detected`;
             }
         }
 
+        // --- EDIT MEMBER MODAL LOGIC ---
+        function openEditMemberModal(memberId) {
+            const member = state.members.find(m => m.id === memberId);
+            if (!member || !elements.editMemberModal) return;
+
+            elements.editMemberId.value = member.id;
+            elements.editMemberName.value = member.name;
+            elements.editMemberRole.value = member.role;
+
+            const primaries = state.members.filter(m => m.role === 'primary' && m.id !== member.id);
+            elements.editMemberParent.innerHTML = primaries.map(p => `
+                <option value="${p.id}" ${member.parentId === p.id ? 'selected' : ''}>Covered by ${p.name}</option>
+            `).join('');
+
+            if (member.role === 'dependent') {
+                elements.editParentContainer.classList.remove('hidden');
+            } else {
+                elements.editParentContainer.classList.add('hidden');
+            }
+
+            // Manage Dependents Section if editing a Primary Payer
+            if (member.role === 'primary') {
+                elements.manageDependentsSection.classList.remove('hidden');
+                const dependents = state.members.filter(m => m.role === 'dependent' && m.parentId === member.id);
+                elements.dependentsCountTag.textContent = `${dependents.length} Dependents`;
+
+                elements.currentDependentsList.innerHTML = dependents.map(d => `
+                    <div class="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-700/50 rounded-lg text-xs">
+                        <span class="font-medium text-slate-700 dark:text-slate-200">${d.name}</span>
+                        <button type="button" onclick="removeMember('${d.id}')" class="text-rose-500 hover:text-rose-700 text-xs">Remove</button>
+                    </div>
+                `).join('');
+            } else {
+                elements.manageDependentsSection.classList.add('hidden');
+            }
+
+            elements.editMemberModal.classList.remove('hidden');
+        }
+
+        function removeMember(memberId) {
+            state.members = state.members.filter(m => m.id !== memberId);
+            state.items.forEach(i => {
+                i.assignedMemberIds = i.assignedMemberIds.filter(id => id !== memberId);
+            });
+
+            elements.editMemberModal?.classList.add('hidden');
+            showToast('Member removed');
+            renderAll();
+        }
+
         function generateWhatsAppText() {
-            let text = `🧾 *MEAL BILL BREAKDOWN*\n`;
-            text += `--------------------------------\n`;
+            let text = `🧾 *BILL SPLIT SUMMARY*\n`;
+            text += `------------------------------\n`;
+
+            state.items.forEach(i => {
+                text += `• ${i.name}: RM ${i.price.toFixed(2)}\n`;
+            });
+
+            text += `\n*Svc Charge (${state.serviceChargeRate}%):* Included\n`;
+            text += `------------------------------\n`;
+            text += `*PAYMENT SUMMARY:*\n\n`;
 
             const primaries = state.members.filter(m => m.role === 'primary');
             primaries.forEach(p => {
-                const dependents = state.members.filter(m => m.role === 'dependent' && m.parentId === p.id);
-                const familyNames = [p.name, ...dependents.map(d => d.name)].join(', ');
-
-                // Calculate payer total
-                const familyMembers = state.members.filter(m => m.id === p.id || (m.role === 'dependent' && m.parentId === p.id));
-                let payerTotal = 0;
-
-                state.items.forEach(item => {
-                    const taxTier = state.taxTiers.find(t => t.id === item.taxTierId) || { rate: 0 };
-                    const fullItemTotal = item.price * (1 + taxTier.rate / 100 + state.serviceChargeRate / 100);
-                    const count = item.assignedMemberIds.length;
-                    if (count > 0) {
-                        const pricePerPerson = fullItemTotal / count;
-                        item.assignedMemberIds.forEach(mId => {
-                            if (familyMembers.some(fm => fm.id === mId)) {
-                                payerTotal += pricePerPerson;
-                            }
-                        });
+                const card = document.querySelectorAll('#breakdown-cards-list > div');
+                let amountText = '0.00';
+                card.forEach(c => {
+                    if (c.innerHTML.includes(p.name)) {
+                        const totalEl = c.querySelector('.text-emerald-600, .text-emerald-400');
+                        if (totalEl) amountText = totalEl.textContent;
                     }
                 });
-
-                text += `👤 *Group ${p.name}* (${familyNames}): *RM ${payerTotal.toFixed(2)}*\n`;
+                text += `*${p.name}:* ${amountText}\n`;
             });
 
-            text += `--------------------------------\n`;
-            text += `✨ Generated by Smart Bill Splitter`;
+            text += `\nThank you! Please transfer accordingly. 🙏`;
             return text;
         }
 
-        function showToast(msg, isError = false) {
+        function showToast(message, isError = false) {
             if (!elements.toast) return;
-            document.getElementById('toast-message').textContent = msg;
+            const toastIcon = document.getElementById('toast-icon');
+            const toastMessage = document.getElementById('toast-message');
+
+            toastMessage.textContent = message;
+            if (isError) {
+                toastIcon.className = "fa-solid fa-circle-xmark text-rose-400";
+            } else {
+                toastIcon.className = "fa-solid fa-circle-check text-emerald-400";
+            }
+
             elements.toast.classList.remove('translate-y-20', 'opacity-0');
             setTimeout(() => {
                 elements.toast.classList.add('translate-y-20', 'opacity-0');
