@@ -4,32 +4,57 @@
     <!-- Tell GitHub Pages to skip Jekyll processing -->
     <!-- .nojekyll enabled -->
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Family & Group Bill Splitter with Multi-Tax Support</title>
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Home Screen app: name, icon, full screen without the Safari bars -->
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Bill Split">
+    <meta name="theme-color" content="#ffffff">
+    <script>
+        // iPhone zooms in when a text box with small text is tapped; maximum-scale stops that
+        // (iOS still lets people pinch-zoom, so only apply it there)
+        if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) {
+            document.querySelector('meta[name=viewport]').content += ', maximum-scale=1';
+        }
+    </script>
     <!-- Google Font: Inter -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Tailwind classes, prebuilt (build-css.sh) so the app works offline.
+         After FontAwesome so classes like "hidden" on an icon win over its display rule. -->
+    <link rel="stylesheet" href="app.css">
     <!-- Removed Tesseract.js in favor of Gemini Vision AI -->
     <!-- html2canvas: draws the bill summary card for the Share Image / PDF buttons -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" defer></script>
     <!-- jsPDF: puts the same summary onto A4 pages for the PDF button -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    fontFamily: {
-                        sans: ['Inter', 'sans-serif'],
-                    }
-                }
-            }
-        }
-    </script>
     <style>
+        /* Home Screen app on iPhone: keep content clear of the notch, rounded corners and home bar */
+        body {
+            padding-left: env(safe-area-inset-left);
+            padding-right: env(safe-area-inset-right);
+            padding-bottom: calc(3rem + env(safe-area-inset-bottom));
+            -webkit-tap-highlight-color: transparent;
+        }
+        header { padding-top: env(safe-area-inset-top); }
+        #toast { bottom: calc(1.25rem + env(safe-area-inset-bottom)); }
+        #update-bar { bottom: calc(1rem + env(safe-area-inset-bottom)); }
+        /* Popups scroll when taller than the screen (e.g. with the keyboard open) instead of cutting off the top */
+        .modal-overlay {
+            align-items: flex-start;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+        }
+        .modal-overlay > div { margin-top: auto; margin-bottom: auto; }
+        html, body { overscroll-behavior-y: none; }
+
         .custom-scrollbar::-webkit-scrollbar {
             width: 5px;
             height: 5px;
@@ -46,7 +71,7 @@
         }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100 min-h-screen font-sans pb-12 transition-colors duration-200">
+<body class="bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100 min-h-screen font-sans transition-colors duration-200">
     <!-- HEADER NAVBAR -->
     <header class="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-30 shadow-sm">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex items-center justify-between">
@@ -61,6 +86,10 @@
             </div>
 
             <div class="flex items-center space-x-2 sm:space-x-3">
+                <button id="open-backup-btn" class="px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-700 transition-colors flex items-center gap-1.5" title="Save all people and receipts to a file, or restore them">
+                    <i class="fa-solid fa-box-archive"></i> <span class="hidden sm:inline">Backup</span>
+                </button>
+
                 <button id="clear-storage-btn" class="px-3 py-1.5 text-xs font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg border border-rose-200 dark:border-rose-900 transition-colors flex items-center gap-1.5" title="Clear this receipt's items, shop, date, payer & charges (people and other receipts are kept)">
                     <i class="fa-solid fa-trash-can"></i> <span class="hidden sm:inline">Clear Receipt</span>
                 </button>
@@ -79,7 +108,7 @@
             <span class="shrink-0 text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 mr-1">
                 <i class="fa-solid fa-receipt"></i> Receipts
             </span>
-            <div id="receipt-tabs" class="flex gap-2"></div>
+            <div id="receipt-tabs" class="shrink-0 flex gap-2"></div>
             <button type="button" onclick="addReceipt()" class="shrink-0 px-3 py-2.5 text-xs font-medium text-emerald-700 dark:text-emerald-400 border border-dashed border-emerald-300 dark:border-emerald-800 rounded-xl hover:bg-emerald-50 dark:hover:bg-emerald-950/40 flex items-center gap-1.5">
                 <i class="fa-solid fa-plus"></i> Add receipt
             </button>
@@ -367,11 +396,11 @@
 
                 <!-- SETTLE UP ACROSS ALL RECEIPTS (only shown with 2+ receipts) -->
                 <div id="settle-card" class="hidden bg-white dark:bg-slate-800 rounded-2xl p-5 shadow-sm border-2 border-emerald-500 space-y-3">
-                    <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 pb-2.5">
-                        <h3 class="text-sm font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                    <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-slate-100 dark:border-slate-700 pb-2.5">
+                        <h3 class="whitespace-nowrap text-sm font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                             <i class="fa-solid fa-right-left text-emerald-500"></i> Settle Up · All Receipts
                         </h3>
-                        <span id="settle-subtitle" class="text-xs font-medium text-slate-400"></span>
+                        <span id="settle-subtitle" class="whitespace-nowrap text-xs font-medium text-slate-400"></span>
                     </div>
                     <div id="settle-body" class="space-y-3"></div>
                 </div>
@@ -393,13 +422,13 @@
     </main>
 
     <!-- EDIT MEMBER MODAL -->
-    <div id="edit-member-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div id="edit-member-modal" class="modal-overlay fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
         <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700 space-y-4">
             <div class="flex justify-between items-center border-b border-slate-200 dark:border-slate-700 pb-3">
                 <h3 class="text-base font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                     <i class="fa-solid fa-user-gear text-emerald-500"></i> Edit Member & Hierarchy
                 </h3>
-                <button id="close-edit-member-btn" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                <button id="close-edit-member-btn" class="p-2 -m-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
                     <i class="fa-solid fa-xmark text-base"></i>
                 </button>
             </div>
@@ -446,13 +475,13 @@
     </div>
 
     <!-- TAX SETTINGS MODAL -->
-    <div id="tax-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div id="tax-modal" class="modal-overlay fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
         <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700 space-y-4">
             <div class="flex justify-between items-center border-b border-slate-200 dark:border-slate-700 pb-3">
                 <h3 class="text-base font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                     <i class="fa-solid fa-sliders text-emerald-500"></i> Adjustable Tax & Service Charges
                 </h3>
-                <button id="close-tax-modal-btn" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                <button id="close-tax-modal-btn" class="p-2 -m-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
                     <i class="fa-solid fa-xmark text-base"></i>
                 </button>
             </div>
@@ -488,13 +517,13 @@
     </div>
 
     <!-- WHATSAPP EXPORT MODAL -->
-    <div id="whatsapp-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div id="whatsapp-modal" class="modal-overlay fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
         <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700 space-y-4">
             <div class="flex justify-between items-center border-b border-slate-200 dark:border-slate-700 pb-3">
                 <h3 class="text-base font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                     <i class="fa-brands fa-whatsapp text-emerald-500"></i> WhatsApp Summary
                 </h3>
-                <button id="close-whatsapp-modal-btn" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                <button id="close-whatsapp-modal-btn" class="p-2 -m-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
                     <i class="fa-solid fa-xmark text-base"></i>
                 </button>
             </div>
@@ -510,13 +539,13 @@
     </div>
 
     <!-- SCREENSHOT EXPORT MODAL -->
-    <div id="screenshot-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div id="screenshot-modal" class="modal-overlay fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
         <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-lg w-full max-h-[90vh] flex flex-col p-6 shadow-2xl border border-slate-200 dark:border-slate-700 space-y-4">
             <div class="flex justify-between items-center border-b border-slate-200 dark:border-slate-700 pb-3">
                 <h3 id="export-modal-title" class="text-base font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                     <i class="fa-solid fa-image text-emerald-500"></i> Bill Image
                 </h3>
-                <button id="close-screenshot-modal-btn" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                <button id="close-screenshot-modal-btn" class="p-2 -m-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
                     <i class="fa-solid fa-xmark text-base"></i>
                 </button>
             </div>
@@ -539,13 +568,13 @@
     </div>
 
     <!-- EDIT ITEM MODAL -->
-    <div id="edit-item-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div id="edit-item-modal" class="modal-overlay fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
         <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700 space-y-4">
             <div class="flex justify-between items-center border-b border-slate-200 dark:border-slate-700 pb-3">
                 <h3 class="text-base font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                     <i class="fa-solid fa-utensils text-emerald-500"></i> Edit Dish / Drink
                 </h3>
-                <button id="close-edit-item-btn" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                <button id="close-edit-item-btn" class="p-2 -m-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
                     <i class="fa-solid fa-xmark text-base"></i>
                 </button>
             </div>
@@ -587,13 +616,13 @@
     </div>
 
     <!-- OCR RECEIPT SCANNER MODAL -->
-    <div id="ocr-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div id="ocr-modal" class="modal-overlay fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
         <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-xl w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700 space-y-4">
             <div class="flex justify-between items-center border-b border-slate-200 dark:border-slate-700 pb-3">
                 <h3 class="text-base font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                     <i class="fa-solid fa-wand-magic-sparkles text-teal-500"></i> Smart AI Receipt Scanner
                 </h3>
-                <button id="close-ocr-modal-btn" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                <button id="close-ocr-modal-btn" class="p-2 -m-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
                     <i class="fa-solid fa-xmark text-base"></i>
                 </button>
             </div>
@@ -638,6 +667,11 @@
                 <p class="text-xs font-semibold text-slate-700 dark:text-slate-200">Click or snap receipt photo</p>
                 <p class="text-[11px] text-slate-400 mt-1">Supports bilingual receipts (Chinese/English)</p>
             </div>
+            <!-- Phones: open the camera straight away -->
+            <label id="ocr-camera-btn" class="hidden relative w-full px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-medium items-center justify-center gap-1.5 cursor-pointer">
+                <i class="fa-solid fa-camera"></i> Take photo of receipt
+                <input type="file" id="ocr-camera-input" accept="image/*" capture="environment" class="absolute inset-0 opacity-0 cursor-pointer">
+            </label>
 
             <!-- Image Preview & Status -->
             <div id="ocr-status-box" class="hidden space-y-2">
@@ -667,6 +701,43 @@
                 </button>
             </div>
         </div>
+    </div>
+
+    <!-- BACKUP / RESTORE MODAL -->
+    <div id="backup-modal" class="modal-overlay fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700 space-y-4">
+            <div class="flex justify-between items-center border-b border-slate-200 dark:border-slate-700 pb-3">
+                <h3 class="text-base font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                    <i class="fa-solid fa-box-archive text-emerald-500"></i> Backup & Restore
+                </h3>
+                <button id="close-backup-modal-btn" class="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                    <i class="fa-solid fa-xmark text-base"></i>
+                </button>
+            </div>
+
+            <p class="text-xs text-slate-500 dark:text-slate-400">
+                Everything is saved on this device only. The Home Screen app and Safari keep separate copies, so use a backup file to move your people and receipts between them or to a new phone.
+            </p>
+            <p id="backup-summary" class="text-xs font-medium text-slate-600 dark:text-slate-300"></p>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <button type="button" id="save-backup-btn" class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-medium flex items-center justify-center gap-1.5">
+                    <i class="fa-solid fa-file-arrow-down"></i> Save backup file
+                </button>
+                <label class="relative px-4 py-2.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-medium flex items-center justify-center gap-1.5 cursor-pointer">
+                    <i class="fa-solid fa-file-arrow-up"></i> Restore from file
+                    <input type="file" id="restore-backup-input" accept=".json,application/json,text/plain" class="absolute inset-0 opacity-0 cursor-pointer">
+                </label>
+            </div>
+            <p class="text-[10px] text-slate-400">Your Gemini key is never put in the backup. Enter it again in the receipt scanner.</p>
+        </div>
+    </div>
+
+    <!-- NEW VERSION BAR (Home Screen app keeps a saved copy; this appears when GitHub has a newer one) -->
+    <div id="update-bar" class="hidden fixed left-1/2 -translate-x-1/2 z-[70] whitespace-nowrap bg-slate-800 text-white pl-4 pr-2 py-2 rounded-xl shadow-xl flex items-center gap-3 text-sm">
+        <i class="fa-solid fa-arrows-rotate text-emerald-400"></i>
+        <span>New version available</span>
+        <button type="button" id="update-reload-btn" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-xs font-medium">Update</button>
     </div>
 
     <!-- TOAST NOTIFICATION -->
@@ -956,6 +1027,7 @@
 
             initEvents();
             renderAll();
+            initAppShell();
         });
 
         function initEvents() {
@@ -1391,8 +1463,21 @@
             });
 
             elements.darkModeToggle?.addEventListener('click', () => {
-                document.documentElement.classList.toggle('dark');
+                const dark = document.documentElement.classList.toggle('dark');
+                // Status bar colour matches the header
+                document.querySelector('meta[name=theme-color]')?.setAttribute('content', dark ? '#1e293b' : '#ffffff');
             });
+
+            document.getElementById('open-backup-btn')?.addEventListener('click', openBackupModal);
+            document.getElementById('close-backup-modal-btn')?.addEventListener('click', () => document.getElementById('backup-modal').classList.add('hidden'));
+            document.getElementById('save-backup-btn')?.addEventListener('click', saveBackup);
+            document.getElementById('restore-backup-input')?.addEventListener('change', restoreBackup);
+
+            // Phones get a separate "Take photo" button that opens the camera directly
+            document.getElementById('ocr-camera-input')?.addEventListener('change', handleOcrFileUpload);
+            if (window.matchMedia?.('(pointer: coarse)').matches) {
+                document.getElementById('ocr-camera-btn')?.classList.replace('hidden', 'flex');
+            }
 
             // Close member pickers on outside click, page scroll, resize or Escape
             document.addEventListener('pointerdown', (e) => {
@@ -1400,6 +1485,9 @@
             });
             window.addEventListener('scroll', onPickerViewportChange, true);
             window.addEventListener('resize', onPickerViewportChange);
+            // iPhone keyboard: it shrinks the visible area without resizing the window
+            window.visualViewport?.addEventListener('resize', onPickerViewportChange);
+            window.visualViewport?.addEventListener('scroll', onPickerViewportChange);
             document.addEventListener('keydown', (e) => {
                 if (e.key === 'Escape') closeMemberPickers();
             });
@@ -1574,10 +1662,16 @@
             const width = Math.max(rect.width, picker.dataset.shares ? 260 : 200);
             panel.style.width = `${width}px`;
             panel.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - width - 8))}px`;
-            const fitsBelow = window.innerHeight - rect.bottom > panel.offsetHeight + 8;
-            panel.style.top = (!fitsBelow && rect.top > panel.offsetHeight + 8)
-                ? `${rect.top - panel.offsetHeight - 4}px`
-                : `${rect.bottom + 4}px`;
+            // Only the part above the iPhone keyboard is visible (visualViewport); fit the list into it
+            const vv = window.visualViewport;
+            const viewTop = (vv ? vv.offsetTop : 0) + 8;
+            const viewBottom = (vv ? vv.offsetTop + vv.height : window.innerHeight) - 8;
+            const below = viewBottom - rect.bottom - 4;
+            const above = rect.top - 4 - viewTop;
+            const wanted = Math.min(288, panel.scrollHeight);
+            const placeBelow = below >= wanted || below >= above;
+            panel.style.maxHeight = `${Math.max(120, Math.min(288, placeBelow ? below : above))}px`;
+            panel.style.top = placeBelow ? `${rect.bottom + 4}px` : `${rect.top - 4 - panel.offsetHeight}px`;
         }
 
         // Typing in a picker's search: the phone keyboard resizes / scrolls the page, so follow the button instead of closing
@@ -2035,6 +2129,16 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
                         </button>` : ''}
                     </div>`;
             }).join('');
+
+            // With many receipts the row scrolls sideways: keep the open tab in view (sideways only, the page doesn't jump)
+            const row = tabs.parentElement;
+            const activeTab = [...tabs.children][receipts.findIndex(r => r.id === state.activeReceiptId)];
+            if (activeTab && row.scrollWidth > row.clientWidth) {
+                const left = activeTab.offsetLeft - row.offsetLeft, right = left + activeTab.offsetWidth;
+                if (activeTab === tabs.lastElementChild) row.scrollLeft = row.scrollWidth; // also shows "Add receipt"
+                else if (left < row.scrollLeft) row.scrollLeft = left - 8;
+                else if (right > row.scrollLeft + row.clientWidth) row.scrollLeft = right - row.clientWidth + 8;
+            }
         }
 
         function renderNewMemberParentOptions() {
@@ -2814,12 +2918,12 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
                 </tr>`).join('');
 
             const transferRows = transfers.length ? transfers.map(t => `
-                <div class="flex items-center justify-between p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40">
-                    <span class="text-xs text-slate-700 dark:text-slate-200">
+                <div class="flex items-center justify-between gap-3 p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40">
+                    <span class="min-w-0 text-xs text-slate-700 dark:text-slate-200">
                         <b>${escapeHtml(t.from.name)}</b> <i class="fa-solid fa-arrow-right text-[10px] text-slate-400 mx-1"></i> <b>${escapeHtml(t.to.name)}</b>
                         <span class="block text-[10px] text-slate-400">for ${t.receipts.map(escapeHtml).join(', ')}</span>
                     </span>
-                    <span class="text-sm font-extrabold text-emerald-700 dark:text-emerald-400">${formatRM(t.amount)}</span>
+                    <span class="shrink-0 whitespace-nowrap text-sm font-extrabold text-emerald-700 dark:text-emerald-400">${formatRM(t.amount)}</span>
                 </div>`).join('') : `<div class="text-xs text-slate-400 italic">Everyone is even — nothing to transfer.</div>`;
 
             document.getElementById('settle-body').innerHTML = `
@@ -3195,11 +3299,116 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
 
         function downloadExport() {
             if (!exportFile) return;
+            saveFile(exportFile.blob, exportFile.name, exportFile.type);
+        }
+
+        // Opened from the Home Screen (no Safari bars)
+        function isHomeScreenApp() {
+            return window.matchMedia?.('(display-mode: standalone)').matches || navigator.standalone === true;
+        }
+
+        // The Home Screen app has no Downloads bar, and a download link there can open a preview with no way back.
+        // Use the share sheet instead: it has "Save to Files" / "Save Image".
+        async function saveFile(blob, name, type) {
+            const file = new File([blob], name, { type });
+            if (isHomeScreenApp() && navigator.canShare?.({ files: [file] })) {
+                try {
+                    await navigator.share({ files: [file] });
+                } catch (err) {
+                    if (err.name !== 'AbortError') showToast('Saving failed — try again', true);
+                }
+                return;
+            }
             const a = document.createElement('a');
-            a.href = URL.createObjectURL(exportFile.blob);
-            a.download = exportFile.name;
+            a.href = URL.createObjectURL(blob);
+            a.download = name;
             a.click();
             setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+        }
+
+        // --- BACKUP / RESTORE ---
+        // The Gemini key lives under its own storage key, so it is never in `state` or the backup
+        const BACKUP_APP_ID = 'smart-bill-splitter';
+
+        function openBackupModal() {
+            const receipts = allReceipts();
+            const items = receipts.reduce((n, r) => n + r.items.length, 0);
+            document.getElementById('backup-summary').textContent =
+                `On this device: ${state.members.length} people, ${receipts.length} receipt${receipts.length > 1 ? 's' : ''}, ${items} item${items === 1 ? '' : 's'}.`;
+            document.getElementById('backup-modal').classList.remove('hidden');
+        }
+
+        function saveBackup() {
+            saveState();
+            const backup = { app: BACKUP_APP_ID, version: 1, savedAt: new Date().toISOString(), state };
+            const day = new Date().toISOString().slice(0, 10);
+            saveFile(new Blob([JSON.stringify(backup, null, 1)], { type: 'application/json' }), `bill-splitter-backup-${day}.json`, 'application/json');
+        }
+
+        async function restoreBackup(event) {
+            const file = event.target.files[0];
+            event.target.value = '';
+            if (!file) return;
+            let restored;
+            try {
+                const data = JSON.parse(await file.text());
+                restored = data.app === BACKUP_APP_ID ? data.state : null;
+                if (!restored || !Array.isArray(restored.members) || restored.members.length === 0) throw new Error('not a backup');
+            } catch (e) {
+                showToast("That file isn't a Bill Splitter backup", true);
+                return;
+            }
+            const receipts = Array.isArray(restored.receipts) ? restored.receipts.length : 1;
+            if (!confirm(`Replace everything on this device with the backup (${restored.members.length} people, ${receipts} receipt${receipts > 1 ? 's' : ''})?`)) return;
+            state = migrateState(restored);
+            saveState();
+            document.getElementById('backup-modal').classList.add('hidden');
+            renderAll();
+            showToast('Backup restored');
+        }
+
+        // --- OFFLINE + UPDATES (Home Screen app) ---
+        function initAppShell() {
+            // Ask the phone not to clear saved bills when space runs low
+            navigator.storage?.persist?.().catch(() => {});
+            if (!('serviceWorker' in navigator) || location.protocol === 'file:') return;
+
+            // worker: a new offline helper waiting to take over; none means just reload the page
+            const showUpdateBar = (worker) => {
+                document.getElementById('update-bar').classList.remove('hidden');
+                document.getElementById('update-reload-btn').onclick = () => {
+                    if (!worker) return location.reload();
+                    updateRequested = true;
+                    worker.postMessage('skipWaiting');
+                };
+            };
+            // sw.js found a newer index.html on GitHub and has saved it
+            navigator.serviceWorker.addEventListener('message', (e) => {
+                if (e.data?.type === 'app-updated') showUpdateBar(null);
+            });
+            // After "Update", reload once the new version has taken over.
+            // (The first install also takes over the page, but that must not reload it mid-typing.)
+            let updateRequested = false;
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                if (!updateRequested) return;
+                updateRequested = false;
+                location.reload();
+            });
+
+            navigator.serviceWorker.register('sw.js').then(reg => {
+                if (reg.waiting && navigator.serviceWorker.controller) showUpdateBar(reg.waiting);
+                reg.addEventListener('updatefound', () => {
+                    const worker = reg.installing;
+                    worker?.addEventListener('statechange', () => {
+                        // A first install has no controller yet: that's not an update
+                        if (worker.state === 'installed' && navigator.serviceWorker.controller) showUpdateBar(worker);
+                    });
+                });
+                // A Home Screen app can stay open for days: check GitHub again whenever it comes back to the front
+                document.addEventListener('visibilitychange', () => {
+                    if (document.visibilityState === 'visible') reg.update().catch(() => {});
+                });
+            }).catch(err => console.warn('Offline mode unavailable', err));
         }
 
         function generateWhatsAppText() {
