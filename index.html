@@ -13,8 +13,10 @@
     <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Removed Tesseract.js in favor of Gemini Vision AI -->
-    <!-- html2canvas: turns the page into an image for the Screenshot button -->
+    <!-- html2canvas: draws the bill summary card for the Share Image / PDF buttons -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" defer></script>
+    <!-- jsPDF: puts the same summary onto A4 pages for the PDF button -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
     <script>
         tailwind.config = {
             darkMode: 'class',
@@ -214,10 +216,12 @@
                     <div class="flex items-center space-x-2">
                         <span class="w-7 h-7 rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 flex items-center justify-center font-bold text-sm">3</span>
                         <h2 class="text-lg font-semibold">Covered Guests Billing Rules</h2>
+                        <span id="coverage-receipt-label" class="px-2 py-0.5 text-[11px] font-medium rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 max-w-[180px] truncate"></span>
                     </div>
 
                     <p class="text-xs text-slate-500 dark:text-slate-400">
                         Configure how standalone guests (e.g. D1, D2) get their final total covered—either paid by 1 single primary payer or split across selected primary payers.
+                        These rules apply to the receipt tab that's open; a new receipt starts with a copy of them.
                     </p>
 
                     <div id="coverage-rules-container" class="space-y-3">
@@ -309,6 +313,9 @@
                                 </button>
                                 <button id="export-screenshot-btn" class="px-3 py-1.5 bg-white/20 hover:bg-white/30 backdrop-blur-md rounded-xl text-xs font-medium text-white flex items-center gap-1.5 transition-colors">
                                     <i class="fa-solid fa-image text-sm"></i> Share Image
+                                </button>
+                                <button id="export-pdf-btn" class="px-3 py-1.5 bg-white/20 hover:bg-white/30 backdrop-blur-md rounded-xl text-xs font-medium text-white flex items-center gap-1.5 transition-colors">
+                                    <i class="fa-solid fa-file-pdf text-sm"></i> PDF
                                 </button>
                             </div>
                         </div>
@@ -506,7 +513,7 @@
     <div id="screenshot-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
         <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-lg w-full max-h-[90vh] flex flex-col p-6 shadow-2xl border border-slate-200 dark:border-slate-700 space-y-4">
             <div class="flex justify-between items-center border-b border-slate-200 dark:border-slate-700 pb-3">
-                <h3 class="text-base font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                <h3 id="export-modal-title" class="text-base font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                     <i class="fa-solid fa-image text-emerald-500"></i> Bill Image
                 </h3>
                 <button id="close-screenshot-modal-btn" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
@@ -514,13 +521,12 @@
                 </button>
             </div>
 
-            <div class="flex-1 min-h-0 overflow-y-auto custom-scrollbar rounded-xl border border-slate-200 dark:border-slate-700">
-                <img id="screenshot-preview" alt="Bill screenshot" class="w-full">
-            </div>
+            <div id="export-preview" class="flex-1 min-h-0 overflow-y-auto custom-scrollbar rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-900 space-y-2"></div>
+            <p id="export-note" class="hidden text-[11px] text-slate-400"></p>
 
             <div class="flex flex-wrap justify-end gap-2 border-t border-slate-200 dark:border-slate-700 pt-3">
                 <button type="button" id="download-screenshot-btn" class="px-4 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-medium flex items-center gap-1.5">
-                    <i class="fa-solid fa-download"></i> Save Image
+                    <i class="fa-solid fa-download"></i> <span id="download-export-label">Save Image</span>
                 </button>
                 <button type="button" id="copy-screenshot-btn" class="px-4 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-medium flex items-center gap-1.5">
                     <i class="fa-regular fa-copy"></i> Copy Image
@@ -731,15 +737,22 @@
         // (so the editing code just uses state.items, state.merchant…); every receipt, including
         // the open one, is kept in state.receipts and synced from `state` before saving or settling.
         const RECEIPT_FIELDS = ['merchant', 'date', 'paidByMemberId', 'items', 'discount', 'receiptTotal',
-            'serviceChargeEnabled', 'serviceChargeRate', 'sstEnabled', 'sstOnServiceCharge', 'roundTo5Sen'];
+            'serviceChargeEnabled', 'serviceChargeRate', 'sstEnabled', 'sstOnServiceCharge', 'roundTo5Sen', 'coverageRules'];
 
         function blankReceipt() {
             return {
                 id: 'r_' + Date.now(),
                 merchant: '', date: '', paidByMemberId: '', items: [], discount: 0, receiptTotal: null,
                 serviceChargeEnabled: false, serviceChargeRate: state.serviceChargeRate || 10,
-                sstEnabled: false, sstOnServiceCharge: !!state.sstOnServiceCharge, roundTo5Sen: true
+                sstEnabled: false, sstOnServiceCharge: !!state.sstOnServiceCharge, roundTo5Sen: true,
+                // Start from the open receipt's guest coverage; it can then be changed for this receipt only
+                coverageRules: JSON.parse(JSON.stringify(state.coverageRules || {}))
             };
+        }
+
+        // Guest coverage is per receipt, so member changes have to update every receipt's rules
+        function allCoverageRules() {
+            return allReceipts().map(r => r.coverageRules);
         }
 
         function syncActiveReceipt() {
@@ -794,6 +807,10 @@
                 s.receipts = [{ id: 'r1', ...Object.fromEntries(RECEIPT_FIELDS.map(f => [f, s[f]])) }];
                 s.activeReceiptId = 'r1';
             }
+            // Saved when guest coverage was shared by all receipts: each receipt gets its own copy
+            s.receipts.forEach(r => {
+                if (!r.coverageRules) r.coverageRules = JSON.parse(JSON.stringify(s.coverageRules || {}));
+            });
             const active = s.receipts.find(r => r.id === s.activeReceiptId) || s.receipts[0];
             s.activeReceiptId = active.id;
             RECEIPT_FIELDS.forEach(f => s[f] = active[f]);
@@ -1208,17 +1225,15 @@
                 const primaries = state.members.filter(m => m.role === 'primary').map(m => m.id);
                 if (memberRole === 'primary') {
                     state.members.filter(m => m.role === 'standalone').forEach(guest => {
-                        if (state.coverageRules[guest.id] && state.coverageRules[guest.id].coveredByPrimaryIds) {
-                            if (!state.coverageRules[guest.id].coveredByPrimaryIds.includes(newMember.id)) {
-                                state.coverageRules[guest.id].coveredByPrimaryIds.push(newMember.id);
-                            }
-                        }
+                        allCoverageRules().forEach(rules => {
+                            const ids = rules[guest.id]?.coveredByPrimaryIds;
+                            if (ids && !ids.includes(newMember.id)) ids.push(newMember.id);
+                        });
                     });
                 } else if (memberRole === 'standalone') {
-                    state.coverageRules[newMember.id] = {
-                        mode: 'split_even',
-                        coveredByPrimaryIds: primaries.length ? [...primaries] : []
-                    };
+                    allCoverageRules().forEach(rules => {
+                        rules[newMember.id] = { mode: 'split_even', coveredByPrimaryIds: [...primaries] };
+                    });
                 }
 
                 elements.newMemberName.value = '';
@@ -1358,11 +1373,12 @@
             });
             elements.closeWhatsappModalBtn?.addEventListener('click', () => elements.whatsappModal?.classList.add('hidden'));
 
-            document.getElementById('export-screenshot-btn')?.addEventListener('click', openScreenshotModal);
+            document.getElementById('export-screenshot-btn')?.addEventListener('click', exportImage);
+            document.getElementById('export-pdf-btn')?.addEventListener('click', exportPdf);
             document.getElementById('close-screenshot-modal-btn')?.addEventListener('click', () => document.getElementById('screenshot-modal').classList.add('hidden'));
-            document.getElementById('share-screenshot-btn')?.addEventListener('click', shareScreenshot);
-            document.getElementById('copy-screenshot-btn')?.addEventListener('click', copyScreenshot);
-            document.getElementById('download-screenshot-btn')?.addEventListener('click', downloadScreenshot);
+            document.getElementById('share-screenshot-btn')?.addEventListener('click', shareExport);
+            document.getElementById('copy-screenshot-btn')?.addEventListener('click', copyExport);
+            document.getElementById('download-screenshot-btn')?.addEventListener('click', downloadExport);
             elements.copySummaryBtn?.addEventListener('click', () => {
                 const text = elements.whatsappTextArea.value;
                 const fallbackCopy = () => {
@@ -1631,6 +1647,7 @@
                 item.assignedMemberIds = selectedIds;
                 item.shares = shares;
                 refreshItemRowStatus(item);
+                renderCoverageRules();
                 calculateAndRenderBreakdown();
                 saveState();
             }
@@ -1997,6 +2014,8 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
             const tabs = document.getElementById('receipt-tabs');
             if (!tabs) return;
             const receipts = allReceipts();
+            const coverageTag = document.getElementById('coverage-receipt-label');
+            if (coverageTag) coverageTag.textContent = `For ${receiptLabel(receipts.find(r => r.id === state.activeReceiptId))}`;
             tabs.innerHTML = receipts.map(r => {
                 const active = r.id === state.activeReceiptId;
                 const payer = state.members.find(m => m.id === r.paidByMemberId);
@@ -2310,6 +2329,7 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
         function renderCoverageRules() {
             if (!elements.coverageRulesContainer) return;
             elements.coverageRulesContainer.innerHTML = '';
+            const ateHere = id => state.items.some(i => i.assignedMemberIds.includes(id));
 
             const standalones = state.members.filter(m => m.role === 'standalone' && isActiveMember(m));
             const primaries = state.members.filter(m => m.role === 'primary' && isActiveMember(m));
@@ -2347,6 +2367,7 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
                     <div class="flex items-center justify-between">
                         <span class="font-bold text-xs text-slate-800 dark:text-slate-100 flex items-center gap-1">
                             <i class="fa-solid fa-user-tag text-teal-500"></i> ${guest.name}'s Bill Coverage
+                            ${ateHere(guest.id) ? '' : '<span class="font-normal text-[10px] text-slate-400">(no items on this receipt)</span>'}
                         </span>
                         <select onchange="updateCoverageMode('${guest.id}', this.value)" class="text-xs px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg outline-none">
                             <option value="split_even" ${rule.mode === 'split_even' ? 'selected' : ''}>Split among selected primaries</option>
@@ -2478,7 +2499,16 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
             };
         }
 
-        function renderBillSummary(bill) {
+        // Each guest's full cost on one receipt (food + SST + service charge), and which families cover it
+        function coveredGuestSummary(bill, breakdowns) {
+            return state.members.filter(m => m.role === 'standalone' && isActiveMember(m)).map(g => ({
+                member: g,
+                amount: (bill.per[g.id]?.sub || 0) + (bill.per[g.id]?.tax || 0) + (bill.per[g.id]?.svc || 0),
+                coveredBy: Object.values(breakdowns).filter(b => b.guestList.some(x => x.member.id === g.id)).map(b => b.primary)
+            })).filter(g => g.amount > 0.004);
+        }
+
+        function renderBillSummary(bill, breakdowns) {
             elements.grandTotalAmount.textContent = formatRM(bill.netTotal);
 
             const cells = [['Subtotal', bill.subtotal]];
@@ -2494,6 +2524,22 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
                     <span class="font-bold">${formatRM(value)}</span>
                 </div>
             `).join('');
+
+            // Covered guests aren't a receipt line, so they get their own full-width row under the charges
+            const guests = coveredGuestSummary(bill, breakdowns);
+            if (guests.length) {
+                const total = guests.reduce((sum, g) => sum + g.amount, 0);
+                elements.summaryGrid.insertAdjacentHTML('beforeend', `
+                    <div class="col-span-3 pt-2.5 border-t border-white/10">
+                        <div class="flex justify-between">
+                            <span class="text-emerald-200 text-[11px]"><i class="fa-solid fa-user-tag"></i> Covered guests (incl. SST & service charge)</span>
+                            <span class="font-bold">${formatRM(total)}</span>
+                        </div>
+                        <div class="text-[11px] text-emerald-100/90 mt-0.5">
+                            ${guests.map(g => `${escapeHtml(g.member.name)} ${formatRM(g.amount)} <span class="text-emerald-200/80">(${g.coveredBy.map(p => escapeHtml(p.name)).join(', ')})</span>`).join(' · ')}
+                        </div>
+                    </div>`);
+            }
         }
 
         function setMatchingBadge(tone, icon, text) {
@@ -2524,6 +2570,7 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
                     own: bill.per[p.id] || blank(),
                     dependents: [],
                     guests: blank(),
+                    guestList: [], // { member, amount (food + SST + service charge), split } per covered guest
                     svcShare: 0,
                     roundingShare: 0,
                     finalTotal: 0
@@ -2540,14 +2587,18 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
                 const share = bill.per[guest.id] || blank();
                 const rule = s.coverageRules[guest.id] || { mode: 'split_even', coveredByPrimaryIds: primaries.map(p => p.id) };
 
-                if (rule.mode === 'single' && primaryBreakdowns[rule.singlePrimaryId]) {
-                    addTo(primaryBreakdowns[rule.singlePrimaryId].guests, share);
-                } else {
-                    // Covering families not in this outing are skipped; if none are left, every family in the outing shares the guest
-                    const validPrimaryIds = (rule.mode === 'split_even' ? rule.coveredByPrimaryIds || [] : []).filter(id => primaryBreakdowns[id]);
-                    const coverers = validPrimaryIds.length ? validPrimaryIds : primaries.map(p => p.id);
-                    coverers.forEach(pId => addTo(primaryBreakdowns[pId].guests, share, coverers.length));
-                }
+                // Covering families not in this outing are skipped; if none are left, every family in the outing shares the guest
+                const validPrimaryIds = (rule.mode === 'split_even' ? rule.coveredByPrimaryIds || [] : []).filter(id => primaryBreakdowns[id]);
+                const coverers = rule.mode === 'single' && primaryBreakdowns[rule.singlePrimaryId]
+                    ? [rule.singlePrimaryId]
+                    : (validPrimaryIds.length ? validPrimaryIds : primaries.map(p => p.id));
+                coverers.forEach(pId => {
+                    addTo(primaryBreakdowns[pId].guests, share, coverers.length);
+                    const full = share.sub + share.tax + share.svc;
+                    if (full > 0.004) {
+                        primaryBreakdowns[pId].guestList.push({ member: guest, amount: full / coverers.length, split: coverers.length });
+                    }
+                });
             });
 
             primaries.forEach(p => {
@@ -2574,9 +2625,9 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
 
         function calculateAndRenderBreakdown() {
             const bill = computeBill(state);
-            renderBillSummary(bill);
             const primaries = state.members.filter(m => m.role === 'primary' && isActiveMember(m));
             const primaryBreakdowns = computeFamilyBreakdowns(state, bill);
+            renderBillSummary(bill, primaryBreakdowns);
             const multiReceipt = state.receipts.length > 1;
 
             let calculatedSumOfPayers = 0;
@@ -2599,7 +2650,12 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
                     </div>
                 `).join('');
 
-                const guestsTotal = b.guests.sub + b.guests.tax;
+                const guestsHtml = b.guestList.map(g => `
+                    <div class="flex justify-between text-xs text-teal-600 dark:text-teal-400 pl-2 border-l-2 border-teal-200 dark:border-teal-800">
+                        <span>${g.member.name} (Guest${g.split > 1 ? `, 1/${g.split} share` : ''})</span>
+                        <span>${formatRM(g.amount)}</span>
+                    </div>
+                `).join('');
 
                 card.innerHTML = `
                     <div class="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-700">
@@ -2627,16 +2683,11 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
                             <span class="font-semibold">${formatRM(b.own.sub + b.own.tax)}</span>
                         </div>
                         ${depsHtml}
-                        ${guestsTotal > 0 ? `
-                            <div class="flex justify-between text-teal-600 dark:text-teal-400 font-medium">
-                                <span>Share of Covered Guests:</span>
-                                <span>${formatRM(guestsTotal)}</span>
-                            </div>
-                        ` : ''}
+                        ${guestsHtml}
                         ${bill.serviceCharge > 0 ? `
                             <div class="flex justify-between text-slate-400 pt-1 border-t border-slate-100 dark:border-slate-700/60">
                                 <span>Svc Charge (${state.serviceChargeRate}%):</span>
-                                <span>${formatRM(b.svcShare)}</span>
+                                <span>${formatRM(b.svcShare - b.guests.svc)}</span>
                             </div>
                         ` : ''}
                         ${Math.abs(b.roundingShare) >= 0.005 ? `
@@ -2704,28 +2755,34 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
                 return { receipt: r, name: receiptLabel(r), bill, breakdowns, payer: state.members.find(m => m.id === r.paidByMemberId) };
             });
 
-            // Work in sen so the transfers add up exactly; any leftover sen goes to the biggest creditor
-            families.forEach(f => f.balance = Math.round((f.paid - f.ate) * 100));
-            const leftover = families.reduce((sum, f) => sum + f.balance, 0);
-            if (leftover !== 0 && families.length > 0) {
-                families.reduce((a, b) => (b.balance > a.balance ? b : a)).balance -= leftover;
-            }
+            // Each family pays back whoever paid the receipts they ate on (never someone they don't owe).
+            // Two families who paid for each other on different receipts are netted into one transfer.
+            const pairs = {};
+            receipts.forEach(x => {
+                const payerId = x.receipt.paidByMemberId;
+                if (!byId[payerId]) return;
+                families.forEach(f => {
+                    const amount = x.breakdowns[f.member.id]?.finalTotal || 0;
+                    if (f.member.id === payerId || amount < 0.005) return;
+                    const [a, b] = [f.member.id, payerId].sort();
+                    const pair = pairs[`${a}|${b}`] ||= { a, b, owed: 0, receipts: new Set() }; // owed > 0: a owes b
+                    pair.owed += f.member.id === a ? amount : -amount;
+                    pair.receipts.add(x.name);
+                });
+            });
 
-            // Biggest debtor pays biggest creditor until everyone is even (at most families − 1 transfers)
-            const debtors = families.filter(f => f.balance < 0).map(f => ({ f, left: -f.balance })).sort((a, b) => b.left - a.left);
-            const creditors = families.filter(f => f.balance > 0).map(f => ({ f, left: f.balance })).sort((a, b) => b.left - a.left);
-            const transfers = [];
-            let d = 0, c = 0;
-            while (d < debtors.length && c < creditors.length) {
-                const amount = Math.min(debtors[d].left, creditors[c].left);
-                transfers.push({ from: debtors[d].f.member, to: creditors[c].f.member, amount: amount / 100 });
-                debtors[d].left -= amount;
-                creditors[c].left -= amount;
-                if (debtors[d].left === 0) d++;
-                if (creditors[c].left === 0) c++;
-            }
+            const transfers = Object.values(pairs).map(p => {
+                const sen = Math.round(p.owed * 100);
+                if (sen === 0) return null;
+                const [from, to] = sen > 0 ? [p.a, p.b] : [p.b, p.a];
+                return { from: byId[from].member, to: byId[to].member, amount: Math.abs(sen) / 100, receipts: [...p.receipts] };
+            }).filter(Boolean).sort((x, y) => y.amount - x.amount);
 
-            families.forEach(f => f.balance /= 100);
+            // Balance = what the transfers move in or out, so the table always agrees with them
+            families.forEach(f => {
+                f.balance = round2(transfers.reduce((sum, t) =>
+                    sum + (t.to === f.member ? t.amount : 0) - (t.from === f.member ? t.amount : 0), 0));
+            });
             const grandTotal = round2(receipts.reduce((sum, x) => sum + x.bill.netTotal, 0));
             return { receipts, families, transfers, grandTotal };
         }
@@ -2758,7 +2815,10 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
 
             const transferRows = transfers.length ? transfers.map(t => `
                 <div class="flex items-center justify-between p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40">
-                    <span class="text-xs text-slate-700 dark:text-slate-200"><b>${escapeHtml(t.from.name)}</b> <i class="fa-solid fa-arrow-right text-[10px] text-slate-400 mx-1"></i> <b>${escapeHtml(t.to.name)}</b></span>
+                    <span class="text-xs text-slate-700 dark:text-slate-200">
+                        <b>${escapeHtml(t.from.name)}</b> <i class="fa-solid fa-arrow-right text-[10px] text-slate-400 mx-1"></i> <b>${escapeHtml(t.to.name)}</b>
+                        <span class="block text-[10px] text-slate-400">for ${t.receipts.map(escapeHtml).join(', ')}</span>
+                    </span>
                     <span class="text-sm font-extrabold text-emerald-700 dark:text-emerald-400">${formatRM(t.amount)}</span>
                 </div>`).join('') : `<div class="text-xs text-slate-400 italic">Everyone is even — nothing to transfer.</div>`;
 
@@ -2816,7 +2876,8 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
         function detachPrimary(primaryId) {
             const primaries = state.members.filter(m => m.role === 'primary' && m.id !== primaryId).map(m => m.id);
 
-            Object.values(state.coverageRules).forEach(rule => {
+            const receiptRules = allCoverageRules();
+            receiptRules.flatMap(rules => Object.values(rules)).forEach(rule => {
                 if (rule.coveredByPrimaryIds) {
                     rule.coveredByPrimaryIds = rule.coveredByPrimaryIds.filter(id => id !== primaryId);
                 }
@@ -2828,7 +2889,7 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
             state.members.filter(m => m.role === 'dependent' && m.parentId === primaryId).forEach(dep => {
                 dep.role = 'standalone';
                 dep.parentId = null;
-                state.coverageRules[dep.id] = { mode: 'split_even', coveredByPrimaryIds: [...primaries] };
+                receiptRules.forEach(rules => rules[dep.id] = { mode: 'split_even', coveredByPrimaryIds: [...primaries] });
             });
 
             allReceipts().forEach(r => {
@@ -2849,7 +2910,7 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
             }
 
             if (member.role === 'primary') detachPrimary(memberId);
-            delete state.coverageRules[memberId];
+            allCoverageRules().forEach(rules => delete rules[memberId]);
 
             state.members = state.members.filter(m => m.id !== memberId);
             allItems.forEach(i => {
@@ -2862,15 +2923,15 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
             renderAll();
         }
 
-        // --- SCREENSHOT EXPORT (whole bill as a PNG to forward on WhatsApp) ---
-        let screenshotBlob = null;
+        // --- EXPORT: share image / PDF of the summary card (to forward on WhatsApp) ---
+        let exportFile = null; // { blob, name, type, kind } shown in the export window
 
-        function screenshotFileName() {
+        function exportFileName(ext) {
             const receipts = allReceipts().filter(r => r.items.length > 0);
             const first = receipts[0] || state;
             const parts = receipts.length > 1 ? [first.date, `${receipts.length} receipts`] : [first.merchant, first.date];
             const slug = parts.filter(Boolean).join(' ').replace(/[^\w一-鿿-]+/g, '-').replace(/^-|-$/g, '');
-            return `bill-${slug || 'split'}.png`;
+            return `bill-${slug || 'split'}.${ext}`;
         }
 
         // A phone-width, receipt-style card built only for the image (plain text, always light theme),
@@ -2885,6 +2946,14 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
                     ${body}
                 </div>`;
             const name = m => escapeHtml(m?.name || '?');
+            const guestsBlock = (bill, breakdowns) => {
+                const guests = coveredGuestSummary(bill, breakdowns);
+                if (!guests.length) return '';
+                return `<div style="margin-top:8px;padding:8px 10px;background:#f0fdfa;border-radius:10px;color:#0f766e">
+                    ${row('<b>Covered guests</b> <span style="font-size:10px">(incl. SST & service charge)</span>', `<b>${formatRM(guests.reduce((sum, g) => sum + g.amount, 0))}</b>`)}
+                    ${guests.map(g => row(`${name(g.member)} <span style="color:${C.muted}">→ ${g.coveredBy.map(name).join(', ')}</span>`, formatRM(g.amount), 'font-size:11px')).join('')}
+                </div>`;
+            };
 
             const { receipts, families, transfers, grandTotal } = settlement;
             const multi = receipts.length > 1;
@@ -2892,7 +2961,8 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
             // 1. Who pays whom, combined over every receipt
             const settle = transfers.length
                 ? transfers.map(t => row(
-                    `<b style="color:${C.ink}">${name(t.from)}</b> <span style="color:${C.faint}">→</span> ${name(t.to)}`,
+                    `<b style="color:${C.ink}">${name(t.from)}</b> <span style="color:${C.faint}">→</span> ${name(t.to)}`
+                        + (multi ? `<div style="font-size:10px;color:${C.faint};font-weight:400">for ${t.receipts.map(escapeHtml).join(', ')}</div>` : ''),
                     `<b style="color:${C.green};font-size:17px">${formatRM(t.amount)}</b>`,
                     'font-size:15px;padding:6px 0;align-items:center')).join('')
                 : `<div style="color:${C.muted}">Everyone is even — nothing to transfer.</div>`;
@@ -2907,12 +2977,11 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
                 if (!multi) {
                     const { bill, receipt } = receipts[0];
                     const b = receipts[0].breakdowns[f.member.id];
-                    const guests = b.guests.sub + b.guests.tax;
                     return familyCard(f, formatRM(b.finalTotal), [
                         row(`${name(f.member)}'s food & drinks`, formatRM(b.own.sub + b.own.tax)),
                         ...b.dependents.filter(d => d.sub + d.tax > 0.004).map(d => row(name(d.member), formatRM(d.sub + d.tax))),
-                        guests > 0.004 ? row('Covered guests', formatRM(guests)) : '',
-                        bill.serviceCharge > 0 ? row(`Service charge ${receipt.serviceChargeRate}%`, formatRM(b.svcShare), `color:${C.muted}`) : '',
+                        ...b.guestList.map(g => row(`${name(g.member)} <span style="color:${C.faint}">(guest${g.split > 1 ? `, 1/${g.split} share` : ''})</span>`, formatRM(g.amount), 'color:#0f766e')),
+                        bill.serviceCharge > 0 ? row(`Service charge ${receipt.serviceChargeRate}%`, formatRM(b.svcShare - b.guests.svc), `color:${C.muted}`) : '',
                         Math.abs(b.roundingShare) >= 0.005 ? row('Rounding', formatRM(b.roundingShare), `color:${C.muted}`) : ''
                     ].join(''));
                 }
@@ -2926,7 +2995,7 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
             }).join('');
 
             // 3. Each receipt: items with who ate them, then its charges
-            const receiptSections = receipts.map(({ receipt: r, bill, name: label, payer }) => {
+            const receiptSections = receipts.map(({ receipt: r, bill, breakdowns, name: label, payer }) => {
                 const items = r.items.map(i => {
                     const portions = totalShares(i);
                     const note = portions !== i.assignedMemberIds.length ? ` · RM ${(i.price / portions).toFixed(2)} per portion` : '';
@@ -2946,7 +3015,8 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
                     ...bill.taxLines.map(t => row(`SST ${t.rate}%`, formatRM(t.amount))),
                     bill.roundingAdj !== 0 ? row('Rounding', formatRM(bill.roundingAdj)) : '',
                     row('<b>Net total</b>', `<b>${formatRM(bill.netTotal)}</b>`, `color:${C.ink};font-size:14px;border-top:1px solid ${C.line};margin-top:4px;padding-top:6px`),
-                    matches ? `<div style="margin-top:6px;font-size:11px;font-weight:600;color:${C.green}"><i class="fa-solid fa-circle-check"></i> Matches the printed receipt</div>` : ''
+                    matches ? `<div style="margin-top:6px;font-size:11px;font-weight:600;color:${C.green}"><i class="fa-solid fa-circle-check"></i> Matches the printed receipt</div>` : '',
+                    guestsBlock(bill, breakdowns)
                 ].join('')}</div>`;
 
                 return multi
@@ -2975,72 +3045,159 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
                 </div>`;
         }
 
-        async function openScreenshotModal() {
-            if (!checkReceiptsReady()) return;
-            if (typeof html2canvas !== 'function') {
-                showToast('Screenshot tool is still loading — check your internet and try again', true);
-                return;
-            }
-
-            closeMemberPickers();
-            calculateAndRenderBreakdown();
-            const btn = document.getElementById('export-screenshot-btn');
-            btn.disabled = true;
-            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-sm"></i> Creating…';
+        // Lays the share card out off-screen and captures it as a canvas
+        async function captureShareCard(scale) {
             const host = document.createElement('div');
             host.style.cssText = 'position:absolute;left:-10000px;top:0';
             host.innerHTML = buildShareCardHtml(computeSettlement());
             document.body.appendChild(host);
             try {
-                const canvas = await html2canvas(host.firstElementChild, { backgroundColor: '#ffffff', scale: 2, useCORS: true });
-                screenshotBlob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
-                if (!screenshotBlob) throw new Error('empty image');
-
-                const preview = document.getElementById('screenshot-preview');
-                if (preview.src) URL.revokeObjectURL(preview.src);
-                preview.src = URL.createObjectURL(screenshotBlob);
-
-                // Phones: native share sheet straight to WhatsApp. Desktop: copy / save instead.
-                const file = new File([screenshotBlob], screenshotFileName(), { type: 'image/png' });
-                const canShare = !!navigator.canShare && navigator.canShare({ files: [file] });
-                document.getElementById('share-screenshot-btn').classList.toggle('hidden', !canShare);
-                document.getElementById('copy-screenshot-btn').classList.toggle('hidden', !(navigator.clipboard?.write && window.ClipboardItem));
-                document.getElementById('screenshot-modal').classList.remove('hidden');
-            } catch (err) {
-                console.error(err);
-                showToast('Could not create the image — try again', true);
+                return await html2canvas(host.firstElementChild, { backgroundColor: '#ffffff', scale, useCORS: true });
             } finally {
                 host.remove();
-                btn.disabled = false;
-                btn.innerHTML = '<i class="fa-solid fa-image text-sm"></i> Share Image';
             }
         }
 
-        async function shareScreenshot() {
-            if (!screenshotBlob) return;
-            const file = new File([screenshotBlob], screenshotFileName(), { type: 'image/png' });
+        // Scans up from `bottom` for a blank band (rows crossing no text, only flat background / box edges)
+        // at least `minRows` tall, i.e. a gap between items rather than between two lines of the same item,
+        // and returns its middle so a PDF page ends there cleanly
+        function findCleanCut(ctx, width, bottom, lowest, minRows) {
+            let run = 0;
+            for (let y = bottom; y > lowest; y--) {
+                const row = ctx.getImageData(0, y, width, 1).data;
+                let edges = 0;
+                for (let i = 4; i < row.length && edges <= 4; i += 4) {
+                    const diff = Math.abs(row[i] - row[i - 4]) + Math.abs(row[i + 1] - row[i - 3]) + Math.abs(row[i + 2] - row[i - 2]);
+                    if (diff > 40) edges++;
+                }
+                run = edges <= 4 ? run + 1 : 0;
+                if (run >= minRows) return y + Math.floor(run / 2);
+            }
+            return bottom;
+        }
+
+        async function runExport(btnId, task) {
+            if (!checkReceiptsReady()) return;
+            if (typeof html2canvas !== 'function') {
+                showToast('Export tool is still loading — check your internet and try again', true);
+                return;
+            }
+            closeMemberPickers();
+            calculateAndRenderBreakdown();
+            const btn = document.getElementById(btnId);
+            const idleHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-sm"></i> Creating…';
+            try {
+                await task();
+            } catch (err) {
+                console.error(err);
+                showToast('Could not create the file — try again', true);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = idleHtml;
+            }
+        }
+
+        function exportImage() {
+            return runExport('export-screenshot-btn', async () => {
+                const canvas = await captureShareCard(2);
+                const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+                if (!blob) throw new Error('empty image');
+                showExportModal({ blob, name: exportFileName('png'), type: 'image/png', kind: 'Image' }, [URL.createObjectURL(blob)]);
+            });
+        }
+
+        // A4 pages drawn at 3× resolution. WhatsApp sends PDFs as documents, so unlike photos they're never recompressed.
+        const PDF_SCALE = 3;
+        function exportPdf() {
+            if (!window.jspdf) {
+                showToast('PDF tool is still loading — check your internet and try again', true);
+                return;
+            }
+            return runExport('export-pdf-btn', async () => {
+                const canvas = await captureShareCard(PDF_SCALE);
+                const PAGE = { w: 210, h: 297, side: 12, top: 12, bottom: 16 }; // mm
+                const contentWidth = PAGE.w - PAGE.side * 2;
+                const mmPerPx = contentWidth / canvas.width;
+                const maxSlice = Math.floor((PAGE.h - PAGE.top - PAGE.bottom) / mmPerPx);
+
+                // Fill each page as far as possible, ending in the nearest gap between lines
+                const ctx = canvas.getContext('2d');
+                const slices = [];
+                for (let y = 0; y < canvas.height - 1;) {
+                    let end = Math.min(y + maxSlice, canvas.height);
+                    if (end < canvas.height) end = findCleanCut(ctx, canvas.width, end, y + maxSlice * 0.6, 5 * PDF_SCALE);
+                    slices.push([y, end]);
+                    y = end;
+                }
+
+                const pdf = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4' });
+                const pages = slices.map(([y0, y1], idx) => {
+                    const part = document.createElement('canvas');
+                    part.width = canvas.width;
+                    part.height = y1 - y0;
+                    part.getContext('2d').drawImage(canvas, 0, y0, part.width, part.height, 0, 0, part.width, part.height);
+                    const url = part.toDataURL('image/png');
+                    if (idx > 0) pdf.addPage();
+                    pdf.addImage(url, 'PNG', PAGE.side, PAGE.top, contentWidth, (y1 - y0) * mmPerPx, undefined, 'FAST');
+                    pdf.setFontSize(8);
+                    pdf.setTextColor(148, 163, 184);
+                    pdf.text(`Page ${idx + 1} of ${slices.length}`, PAGE.w / 2, PAGE.h - 8, { align: 'center' });
+                    return url;
+                });
+
+                showExportModal({ blob: pdf.output('blob'), name: exportFileName('pdf'), type: 'application/pdf', kind: 'PDF' }, pages,
+                    `${pages.length} A4 page${pages.length > 1 ? 's' : ''} · WhatsApp sends it as a document, so it stays sharp.`);
+            });
+        }
+
+        function showExportModal(file, previewUrls, note = '') {
+            exportFile = file;
+            const preview = document.getElementById('export-preview');
+            preview.querySelectorAll('img').forEach(img => { if (img.src.startsWith('blob:')) URL.revokeObjectURL(img.src); });
+            preview.innerHTML = previewUrls.map((url, idx) => `<img src="${url}" alt="Bill ${file.kind} ${idx + 1}" class="w-full bg-white">`).join('');
+
+            document.getElementById('export-modal-title').innerHTML =
+                `<i class="fa-solid ${file.kind === 'PDF' ? 'fa-file-pdf' : 'fa-image'} text-emerald-500"></i> Bill ${file.kind}`;
+            const noteEl = document.getElementById('export-note');
+            noteEl.textContent = note;
+            noteEl.classList.toggle('hidden', !note);
+            document.getElementById('download-export-label').textContent = `Save ${file.kind}`;
+
+            // Phones: native share sheet straight to WhatsApp. Desktop: copy (images only) / save instead.
+            const shareFile = new File([file.blob], file.name, { type: file.type });
+            const canShare = !!navigator.canShare && navigator.canShare({ files: [shareFile] });
+            document.getElementById('share-screenshot-btn').classList.toggle('hidden', !canShare);
+            document.getElementById('copy-screenshot-btn').classList.toggle('hidden', !(file.kind === 'Image' && navigator.clipboard?.write && window.ClipboardItem));
+            document.getElementById('screenshot-modal').classList.remove('hidden');
+        }
+
+        async function shareExport() {
+            if (!exportFile) return;
+            const file = new File([exportFile.blob], exportFile.name, { type: exportFile.type });
             try {
                 await navigator.share({ files: [file], title: state.merchant || 'Bill split' });
             } catch (err) {
-                if (err.name !== 'AbortError') showToast('Sharing failed — use Save Image instead', true);
+                if (err.name !== 'AbortError') showToast(`Sharing failed — use Save ${exportFile.kind} instead`, true);
             }
         }
 
-        async function copyScreenshot() {
-            if (!screenshotBlob) return;
+        async function copyExport() {
+            if (!exportFile) return;
             try {
-                await navigator.clipboard.write([new ClipboardItem({ 'image/png': screenshotBlob })]);
+                await navigator.clipboard.write([new ClipboardItem({ [exportFile.type]: exportFile.blob })]);
                 showToast('Image copied — paste it into WhatsApp');
             } catch (err) {
                 showToast('This browser blocked copying images — use Save Image instead', true);
             }
         }
 
-        function downloadScreenshot() {
-            if (!screenshotBlob) return;
+        function downloadExport() {
+            if (!exportFile) return;
             const a = document.createElement('a');
-            a.href = URL.createObjectURL(screenshotBlob);
-            a.download = screenshotFileName();
+            a.href = URL.createObjectURL(exportFile.blob);
+            a.download = exportFile.name;
             a.click();
             setTimeout(() => URL.revokeObjectURL(a.href), 1000);
         }
@@ -3051,7 +3208,7 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
             const line = `------------------------------\n`;
             let text = `🧾 *BILL SPLIT SUMMARY*\n`;
 
-            receipts.forEach(({ receipt: r, bill, name, payer }, idx) => {
+            receipts.forEach(({ receipt: r, bill, breakdowns, name, payer }, idx) => {
                 if (multi) {
                     text += `${line}*${idx + 1}. ${name}*${r.date ? ` (${r.date})` : ''}\n💳 Paid by ${payer ? payer.name : 'Unknown'}\n`;
                 } else {
@@ -3069,6 +3226,11 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
                 bill.taxLines.forEach(t => text += `SST ${t.rate}%: ${formatRM(t.amount)}\n`);
                 if (bill.roundingAdj !== 0) text += `Rounding: ${formatRM(bill.roundingAdj)}\n`;
                 text += `*Net Total: ${formatRM(bill.netTotal)}*\n`;
+                const guests = coveredGuestSummary(bill, breakdowns);
+                if (guests.length) {
+                    text += `🙋 Covered guests (incl. SST & service charge): ${formatRM(guests.reduce((sum, g) => sum + g.amount, 0))}\n`;
+                    guests.forEach(g => text += `   – ${g.member.name}: ${formatRM(g.amount)} (covered by ${g.coveredBy.map(p => p.name).join(', ')})\n`);
+                }
                 if (!multi) text += `${line}💳 *FRONT PAID BY:* ${payer ? payer.name : 'Unknown'}\n`;
             });
 
@@ -3085,7 +3247,7 @@ Numbers only, no currency symbols. If the image is not a receipt, return no item
 
             text += `\n*SETTLEMENT PAYMENTS:*\n`;
             if (transfers.length === 0) text += `Everyone is even — nothing to transfer.\n`;
-            transfers.forEach(t => text += `• *${t.from.name}* pays *${formatRM(t.amount)}* to ${t.to.name}\n`);
+            transfers.forEach(t => text += `• *${t.from.name}* pays *${formatRM(t.amount)}* to ${t.to.name}${multi ? ` (for ${t.receipts.join(', ')})` : ''}\n`);
 
             text += `\nThank you! Please transfer accordingly. 🙏`;
             return text;
